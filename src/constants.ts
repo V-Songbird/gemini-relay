@@ -1,0 +1,193 @@
+
+
+// Logging
+export const LOG_PREFIX = "[GMCPT]";
+
+// Error messages
+export const ERROR_MESSAGES = {
+  QUOTA_EXCEEDED: "Quota exceeded for quota metric 'Gemini 2.5 Pro Requests'",
+  QUOTA_EXCEEDED_SHORT: "⚠️ Gemini 2.5 Pro daily quota exceeded. Please retry with model: 'gemini-2.5-flash'",
+  TOOL_NOT_FOUND: "not found in registry",
+  NO_PROMPT_PROVIDED: "Please provide a prompt for analysis. Use @ syntax to include files (e.g., '@largefile.js explain what this does') or ask general questions",
+} as const;
+
+// Status messages
+export const STATUS_MESSAGES = {
+  QUOTA_SWITCHING: "🚫 Gemini 2.5 Pro quota exceeded, switching to Flash model...",
+  FLASH_RETRY: "⚡ Retrying with Gemini 2.5 Flash...",
+  FLASH_SUCCESS: "✅ Flash model completed successfully",
+  SANDBOX_EXECUTING: "🔒 Executing Gemini CLI command in sandbox mode...",
+  GEMINI_RESPONSE: "Gemini response:",
+  // Timeout prevention messages
+  PROCESSING_START: "🔍 Starting analysis (may take 5-15 minutes for large codebases)",
+  PROCESSING_CONTINUE: "⏳ Still processing... Gemini is working on your request",
+  PROCESSING_COMPLETE: "✅ Analysis completed successfully",
+} as const;
+
+// Models
+export const MODELS = {
+  // Primary modern defaults (Gemini 3.8 / 3.1)
+  DEFAULT: "gemini-3.8-flash-high",
+  PRO: "gemini-3.1-pro-high",
+  FLASH: "gemini-3.8-flash-high",
+
+  // Gemini 3.8 family
+  GEMINI_3_8_FLASH_HIGH: "gemini-3.8-flash-high",
+  GEMINI_3_8_FLASH_MEDIUM: "gemini-3.8-flash-medium",
+  GEMINI_3_8_FLASH_LOW: "gemini-3.8-flash-low",
+
+  // Gemini 3.7 family
+  GEMINI_3_7_FLASH_HIGH: "gemini-3.7-flash-high",
+  GEMINI_3_7_FLASH_MEDIUM: "gemini-3.7-flash-medium",
+  GEMINI_3_7_FLASH_LOW: "gemini-3.7-flash-low",
+
+  // Gemini 3.6 family
+  GEMINI_3_6_FLASH_HIGH: "gemini-3.6-flash-high",
+  GEMINI_3_6_FLASH_MEDIUM: "gemini-3.6-flash-medium",
+  GEMINI_3_6_FLASH_LOW: "gemini-3.6-flash-low",
+
+  // Gemini 3.1 Pro family
+  GEMINI_3_1_PRO_HIGH: "gemini-3.1-pro-high",
+  GEMINI_3_1_PRO_LOW: "gemini-3.1-pro-low",
+
+  // Legacy compatibility references
+  LEGACY_2_5_PRO: "gemini-2.5-pro",
+  LEGACY_2_5_FLASH: "gemini-2.5-flash",
+  AGY_PRINT_DEFAULT: "gemini-3.8-flash-high",
+} as const;
+
+// Reasoning effort levels (supported on Gemini 3.8 Flash, 3.7 Flash, 3.1 Pro)
+export const EFFORT = {
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+} as const;
+export type ReasoningEffort = (typeof EFFORT)[keyof typeof EFFORT];
+
+// Agent execution modes (supported by Antigravity CLI)
+export const MODES = {
+  ACCEPT_EDITS: "accept-edits",
+  PLAN: "plan",
+} as const;
+export type ExecutionMode = (typeof MODES)[keyof typeof MODES];
+
+// Approval modes. The Gemini CLI exposes a graded set via --approval-mode; the
+// Antigravity CLI only has "skip everything" (--dangerously-skip-permissions),
+// and even that is a no-op in print mode. Backends map these in their own terms.
+export const APPROVAL_MODES = {
+  DEFAULT: "default",
+  AUTO_EDIT: "auto_edit",
+  YOLO: "yolo",
+  PLAN: "plan",
+} as const;
+export type ApprovalMode = (typeof APPROVAL_MODES)[keyof typeof APPROVAL_MODES];
+
+// MCP Protocol Constants
+export const PROTOCOL = {
+  // Message roles
+  ROLES: {
+    USER: "user",
+    ASSISTANT: "assistant",
+  },
+  // Content types
+  CONTENT_TYPES: {
+    TEXT: "text",
+  },
+  // Status codes
+  STATUS: {
+    SUCCESS: "success",
+    ERROR: "error",
+    FAILED: "failed",
+    REPORT: "report",
+  },
+  // Notification methods
+  NOTIFICATIONS: {
+    PROGRESS: "notifications/progress",
+  },
+  // Timeout prevention
+  KEEPALIVE_INTERVAL: 25000, // 25 seconds
+} as const;
+
+
+// CLI Constants
+export const CLI = {
+  // Command names
+  COMMANDS: {
+    GEMINI: "gemini",
+    AGY: "agy", // Antigravity CLI — gemini-cli's successor (retirement: 2026-06-18)
+    ECHO: "echo",
+  },
+  // Command flags
+  FLAGS: {
+    MODEL: "-m",
+    MODEL_LONG: "--model",
+    SANDBOX: "-s",
+    PROMPT: "-p",
+    HELP: "--help", // the external gemini CLI (yargs) splits "-help" into -h -e -l -p; only showed help because -h short-circuits
+    EFFORT: "--effort",
+    JSON_SCHEMA: "--json-schema",
+    MODE: "--mode",
+    ADD_DIR: "--add-dir",
+    OUTPUT_FORMAT: "--output-format",
+    CONVERSATION: "--conversation",
+    CONTINUE: "--continue",
+  },
+  // Default values
+  DEFAULTS: {
+    MODEL: "gemini-3.8-flash-high", // Default modern model
+    EFFORT: "high",
+    BOOLEAN_TRUE: "true",
+    BOOLEAN_FALSE: "false",
+  },
+} as const;
+
+
+// Environment variables that configure the server.
+export const ENV = {
+  GEMINI_CLI_PATH: "GEMINI_CLI_PATH", // explicit path to the gemini executable (Windows shim resolution)
+  AGY_CLI_PATH: "AGY_CLI_PATH", // explicit path to the agy (Antigravity CLI) executable
+  BACKEND: "GEMINI_MCP_BACKEND", // active CLI backend: "gemini" (default) | "agy"/"antigravity"
+  AGY_PTY: "AGY_MCP_PTY", // opt-in: recover agy -p stdout via a pseudo-terminal (POSIX only)
+  TIMEOUT_MINUTES: "GEMINI_MCP_TIMEOUT", // CLI run timeout in minutes (default 45)
+  AGY_PRINT_TIMEOUT: "AGY_PRINT_TIMEOUT", // agy --print-timeout override, e.g. "30m"
+} as const;
+
+// Migration milestones. Gemini CLI is retired for free/Pro/Ultra tiers on this
+// date; from then on `agy` (Antigravity CLI) is the only live option, so the
+// default backend flips to it automatically (Phase 4). Overridable via ENV.BACKEND.
+export const RETIREMENT = {
+  GEMINI_CLI_ISO: "2026-06-18",
+  // Days before retirement at which we start nudging callers to test agy.
+  WARN_WITHIN_DAYS: 14,
+  // Real migration pointers Google surfaces in the gemini CLI itself.
+  AGY_INSTALL_CMD: "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+  MIGRATION_URL: "https://goo.gle/gemini-cli-migration",
+} as const;
+
+
+// (merged PromptArguments and ToolArguments)
+export interface ToolArguments {
+  prompt?: string;
+  model?: string;
+  effort?: "low" | "medium" | "high" | string;
+  jsonSchema?: string | Record<string, unknown>;
+  mode?: "accept-edits" | "plan" | string;
+  addDirs?: string[] | string;
+  conversationId?: string;
+  includeUsage?: boolean;
+  sandbox?: boolean | string;
+  changeMode?: boolean | string;
+  chunkIndex?: number | string; // Which chunk to return (1-based)
+  chunkCacheKey?: string; // Optional cache key for continuation
+  message?: string; // For Ping tool
+  
+  // --> brainstorm tool
+  methodology?: string; // Brainstorming framework to use
+  domain?: string; // Domain context for specialized brainstorming
+  constraints?: string; // Known limitations or requirements
+  existingContext?: string; // Background information to build upon
+  ideaCount?: number; // Target number of ideas to generate
+  includeAnalysis?: boolean; // Include feasibility and impact analysis
+  
+  [key: string]: unknown; // Allow additional properties
+}
