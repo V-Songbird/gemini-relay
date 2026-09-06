@@ -2,7 +2,7 @@
 
 All notable changes to **Gemini Relay** will be documented in this file.
 
-## [Unreleased]
+## [1.3.0] - 2026-09-05
 
 ### Fixed
 - **Large `@file` prompts on the `agy` backend**: the prompt now reaches `agy` on stdin (`--input-format stream-json`) instead of as one argv element, lifting the OS command-line cap (32,767 chars on Windows) that made `@package-lock.json` fail with `spawn ENAMETOOLONG`. Builds without `--input-format` keep `-p`.
