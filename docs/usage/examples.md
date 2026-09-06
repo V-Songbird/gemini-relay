@@ -1,165 +1,102 @@
-# Real-World Examples
+# Workflow Examples
 
-Practical examples of using Gemini MCP Tool in development workflows.
+Jobs with more than one step. For single-sentence asks, see [Prompt recipes](./natural-language.md).
 
-## Code Review
+Each one below is a normal message to your agent. Where an integrator needs the exact call, it is collapsed underneath.
 
-### Reviewing a Pull Request
-```
-/gemini-cli:analyze @feature/new-api/*.js review these changes for:
-- Security issues
-- Performance concerns  
-- Code style consistency
-- Missing error handling
-```
+## Review a diff before you commit
 
-### Pre-commit Check
-```
-"Gemini, check my staged changes before I commit"
-```
+Write the diff to a file, then point at it.
 
-## Debugging
-
-### Analyzing Error Logs
-```
-/gemini-cli:analyze @logs/error.log @src/api/handler.js 
-why am I getting "undefined is not a function" errors?
-```
-
-### Stack Trace Analysis
-```
-@crash-report.txt gemini, what caused this crash and how do I fix it?
-```
-
-## Architecture Analysis
-
-### Understanding a New Codebase
-```
-/gemini-cli:analyze @package.json @src/**/*.js @README.md
-give me an overview of this project's architecture
-```
-
-### Dependency Analysis
-```
-@package.json @package-lock.json are there any security vulnerabilities or outdated packages?
-```
-
-## Documentation
-
-### Generating API Docs
-```
-/gemini-cli:analyze @routes/api/*.js generate OpenAPI documentation for these endpoints
-```
-
-### README Creation
-```
-@src/**/*.js @package.json create a comprehensive README for this project
-```
-
-## Testing
-
-### Writing Tests
-```
-/gemini-cli:analyze @src/utils/validator.js write comprehensive Jest tests for this module
-```
-
-### Test Coverage Analysis
-```
-@src/**/*.js @test/**/*.test.js what's not being tested?
-```
-
-## Refactoring
-
-### Code Optimization
-```
-/gemini-cli:analyze @src/data-processor.js this function is slow, how can I optimize it?
-```
-
-### Pattern Implementation
-```
-@src/services/*.js refactor these to use the Repository pattern
-```
-
-## Learning
-
-### Understanding Concepts
-```
-/gemini-cli:sandbox show me how OAuth 2.0 works with a working example
-```
-
-### Best Practices
-```
-@src/auth/*.js does this follow security best practices?
-```
-
-## Migration
-
-### Framework Upgrade
-```
-/gemini-cli:analyze @package.json @src/**/*.js 
-what changes are needed to upgrade from Express 4 to Express 5?
-```
-
-### Language Migration
-```
-@legacy/script.js convert this to TypeScript with proper types
-```
-
-## Security Audit
-
-### Vulnerability Scan
-```
-/gemini-cli:analyze @src/**/*.js @package.json 
-perform a security audit and identify potential vulnerabilities
-```
-
-### OWASP Check
-```
-@src/api/**/*.js check for OWASP Top 10 vulnerabilities
-```
-
-## Performance Analysis
-
-### Bottleneck Detection
-```
-/gemini-cli:analyze @src/routes/*.js @src/middleware/*.js
-identify performance bottlenecks in the request pipeline
-```
-
-### Memory Leaks
-```
-@src/**/*.js look for potential memory leaks or inefficient patterns
-```
-
-## Real Project Example
-
-### Full Stack Review
 ```bash
-# 1. Architecture overview
-/gemini-cli:analyze @package.json @src/index.js @client/App.jsx 
-explain how the frontend and backend connect
-
-# 2. API Security
-/gemini-cli:analyze @routes/api/*.js @middleware/auth.js 
-review API security implementation
-
-# 3. Database optimization
-/gemini-cli:analyze @models/*.js @db/queries/*.sql 
-suggest database optimizations
-
-# 4. Frontend performance
-/gemini-cli:analyze @client/**/*.jsx @client/**/*.css 
-how can I improve frontend performance?
-
-# 5. Test coverage
-/gemini-cli:analyze @src/**/*.js @test/**/*.test.js 
-what critical paths lack test coverage?
+git diff --staged > .review.patch
 ```
 
-## Tips for Effective Usage
+> *"Have gemini review `@.review.patch` for correctness regressions before I commit."*
 
-1. **Start Broad, Then Narrow**: Begin with overview, then dive into specifics
-2. **Combine Related Files**: Include configs with source code
-3. **Ask Follow-up Questions**: Build on previous responses
-4. **Use Specific Criteria**: Tell Gemini what to look for
-5. **Iterate on Solutions**: Refine based on suggestions
+The patch is one file, so this stays cheap even on a large change set.
+
+## Walk a codebase in one thread
+
+Five questions, each building on the last. Ask the first, then pass the conversation id it reports back with every follow-up so Gemini keeps the earlier answers.
+
+```
+1. "Ask gemini how the frontend and backend connect: @package.json @src/index.js @client/App.jsx"
+2. "Have gemini review API security in @routes/api/*.js @middleware/auth.js"
+3. "Get gemini to suggest database optimizations for @models/*.js @db/queries/*.sql"
+4. "Ask gemini how to improve frontend performance in @client/**/*.jsx @client/**/*.css"
+5. "Which critical paths lack test coverage? @src/**/*.js @test/**/*.test.js — ask gemini"
+```
+
+Resuming replays the thread's history, so start a fresh one when the subject changes. Not every reply reports an id — which ones do is in the [Tool Reference](./commands.md).
+
+## Get findings you can parse
+
+Hand Gemini a schema and the answer comes back as JSON, not prose. Useful when the next step is code rather than a person.
+
+> *"Ask gemini to audit `@src` for vulnerabilities, and give me the findings as JSON."*
+
+<details>
+<summary><strong>For AI agents — the call</strong></summary>
+
+```json
+{ "name": "ask-gemini", "arguments": {
+  "prompt": "Audit @src for vulnerabilities.",
+  "mode": "plan", "effort": "high",
+  "jsonSchema": { "type": "object", "required": ["findings"], "properties": {
+    "findings": { "type": "array", "items": { "type": "object",
+      "required": ["file", "line", "severity", "summary"],
+      "properties": { "file": {"type":"string"}, "line": {"type":"integer"},
+        "severity": {"enum":["low","medium","high","critical"]},
+        "summary": {"type":"string"} } } } } } } }
+```
+
+`mode: "plan"` keeps the run read-only. A `jsonSchema` body carries no token usage line and no conversation id, so that it stays valid JSON.
+
+</details>
+
+## Get edits your agent can apply
+
+`changeMode` returns each change as the exact text to replace and the text to replace it with, so your agent edits the files without re-reading them.
+
+> *"Ask gemini to refactor `@src/services/*.js` to the Repository pattern, in changeMode."*
+
+The reply arrives under a `[CHANGEMODE OUTPUT - …]` header as numbered `### Edit N: <file>` sections. A large set arrives in chunks, and the reply tells you how to fetch the rest. Both formats, and what comes back when the parse fails, are in the [Tool Reference](./commands.md).
+
+<details>
+<summary><strong>For AI agents — the call</strong></summary>
+
+```json
+{ "name": "ask-gemini", "arguments": {
+  "prompt": "@src/services/*.js refactor these to use the Repository pattern.",
+  "changeMode": true } }
+```
+
+</details>
+
+## Plan a migration before touching it
+
+Prose is the wrong shape for a multi-week change. `gemini-plan` returns phases in order, with dependencies and risks.
+
+> *"Use gemini-plan to work out what it takes to move this service from Express 4 to Express 5. Context: `@package.json` `@src/index.js`."*
+
+<details>
+<summary><strong>For AI agents — the call</strong></summary>
+
+```json
+{ "name": "gemini-plan", "arguments": {
+  "task": "Upgrade this service from Express 4 to Express 5.",
+  "context": "@package.json @src/index.js", "effort": "high" } }
+```
+
+</details>
+
+Take the phases back and execute them with your own editing tools. `gemini-plan` is read-only and reports no conversation id, so a follow-up means restating the plan text in a fresh `ask-gemini` call.
+
+## Read something too big to open
+
+`package-lock.json` in this repo is a file your agent should never open. Gemini can.
+
+> *"Ask gemini how many packages are in `@package-lock.json`. Just the number."*
+
+The whole file goes to Gemini; one line comes back. That is the point of the relay — see [Best practices](./best-practices.md) for when to point at files and when to let Gemini find them.

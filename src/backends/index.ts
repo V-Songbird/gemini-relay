@@ -46,14 +46,21 @@ export function getBackend(
   }
 }
 
-// The approaching-retirement nudge is shown once per process, not on every call.
-let retirementNudged = false;
+// A retirement notice is shown once per process, not on every call: the
+// post-retirement one used to be unguarded, so it prefixed every single reply
+// from every tool for as long as the server ran. "Once" is counted at *delivery*
+// (withNotices), not here, because ping/Help (simple-tools) and gemini-doctor
+// call backendSelection for the backend name alone and drop the notices — marking
+// it produced would burn the single shot before any caller ever saw it.
+let retirementNoticeShown = false;
+let pendingRetirementNotice: string | undefined;
 
 /**
  * Resolve the backend and any migration notices to surface to the caller:
  *  - post-retirement, when the default has auto-flipped to agy;
  *  - in the final countdown, a one-time nudge to test agy early.
- * Both are suppressed when GEMINI_MCP_BACKEND is set explicitly.
+ * Each fires at most once per process, and both are suppressed when
+ * GEMINI_MCP_BACKEND is set explicitly.
  */
 export function backendSelection(
   env: NodeJS.ProcessEnv = process.env,
@@ -63,25 +70,26 @@ export function backendSelection(
   const notices: string[] = [];
   const explicit = (env[ENV.BACKEND] || "").trim();
 
-  if (!explicit) {
+  if (!explicit && !retirementNoticeShown) {
     const daysLeft = Math.ceil((RETIREMENT_MS - now.getTime()) / DAY_MS);
-    if (backend.name === "agy") {
-      notices.push(
-        `Gemini CLI was retired on ${RETIREMENT.GEMINI_CLI_ISO}; defaulting to the Antigravity CLI (agy) backend. Set ${ENV.BACKEND}=gemini to override.`,
-      );
-    } else if (daysLeft <= RETIREMENT.WARN_WITHIN_DAYS && !retirementNudged) {
-      retirementNudged = true;
-      notices.push(
-        `Gemini CLI retires on ${RETIREMENT.GEMINI_CLI_ISO} (~${daysLeft} day(s) left); test the successor now with ${ENV.BACKEND}=agy.`,
-      );
+    const notice =
+      backend.name === "agy"
+        ? `Gemini CLI was retired on ${RETIREMENT.GEMINI_CLI_ISO}; defaulting to the Antigravity CLI (agy) backend. Set ${ENV.BACKEND}=gemini to override.`
+        : daysLeft <= RETIREMENT.WARN_WITHIN_DAYS
+          ? `Gemini CLI retires on ${RETIREMENT.GEMINI_CLI_ISO} (~${daysLeft} day(s) left); test the successor now with ${ENV.BACKEND}=agy.`
+          : undefined;
+    if (notice) {
+      pendingRetirementNotice = notice;
+      notices.push(notice);
     }
   }
   return { backend, notices };
 }
 
-/** Test seam: reset the once-per-process retirement nudge. */
+/** Test seam: reset both once-per-process retirement notices. */
 export function __resetRetirementNudgeForTest(): void {
-  retirementNudged = false;
+  retirementNoticeShown = false;
+  pendingRetirementNotice = undefined;
 }
 
 /**
@@ -91,14 +99,21 @@ export function __resetRetirementNudgeForTest(): void {
  *    explains it (agy print-mode is Flash-only);
  *  - if the backend can't isolate tool execution, a requested `sandbox` yields a
  *    notice rather than a false sense of safety.
- * Notices are returned alongside the text for the tool layer to surface.
+ * Notices are returned alongside the text for the tool layer to surface, as is
+ * the conversation id the backend observed (undefined when it reports none), so
+ * a caller can resume the thread without reading agy's private cache files.
  */
 export async function runWithBackend(
   prompt: string,
   opts: BackendRunOptions,
-): Promise<{ text: string; notices: string[]; backend: string }> {
+): Promise<{ text: string; notices: string[]; backend: string; conversationId?: string }> {
   const { backend, notices } = backendSelection();
-  const effective: BackendRunOptions = { ...opts, onNotice: (m) => notices.push(m) };
+  let conversationId: string | undefined;
+  const effective: BackendRunOptions = {
+    ...opts,
+    onNotice: (m) => notices.push(m),
+    onConversationId: (id) => (conversationId = id),
+  };
 
   if (effective.model && !backend.supportsModelSelection) {
     notices.push(
@@ -130,11 +145,17 @@ export async function runWithBackend(
   }
 
   const text = await backend.run(prompt, effective);
-  return { text, notices, backend: backend.name };
+  return { text, notices, backend: backend.name, conversationId };
 }
 
 /** Prepend any capability notices to a response so changes are never silent. */
 export function withNotices(notices: string[], body: string): string {
   if (!notices.length) return body;
+  // This is the moment a notice actually reaches a caller, so it is where the
+  // one-shot migration notice is spent (see backendSelection).
+  if (pendingRetirementNotice && notices.includes(pendingRetirementNotice)) {
+    retirementNoticeShown = true;
+    pendingRetirementNotice = undefined;
+  }
   return notices.map((n) => `⚠️ ${n}`).join("\n") + "\n\n" + body;
 }

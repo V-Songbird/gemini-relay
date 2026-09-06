@@ -22,7 +22,7 @@
       >
         <span class="tab-indicator" :style="{ background: level.color }"></span>
         <span class="tab-label">{{ level.label }}</span>
-        <span class="tab-tokens">{{ level.tokens }}</span>
+        <span class="tab-tokens font-mono">{{ level.flag }}</span>
       </button>
     </div>
 
@@ -32,10 +32,6 @@
         <div class="stat-item">
           <span class="stat-label">Thinking Depth</span>
           <span class="stat-val" :style="{ color: current.color }">{{ current.depth }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Typical Latency</span>
-          <span class="stat-val">{{ current.speed }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">Recommended Model</span>
@@ -68,47 +64,44 @@ const levels = [
   {
     id: 'low',
     label: 'Low Effort',
-    tokens: '~500 tokens',
+    flag: '--effort low',
     color: '#0284c7',
-    depth: 'Minimal (Direct & Fast)',
-    speed: '< 1.5s',
+    depth: 'Minimal thinking',
     recommendedModel: 'gemini-3.8-flash-low',
     useCase: 'High-throughput code explanations, commit message generation, formatting, simple AST conversions, and quick summaries.',
-    snippet: `await useGemini({
+    snippet: `ask-gemini({
   prompt: "Explain the purpose of @package.json dependencies",
   model: "gemini-3.8-flash-low",
   effort: "low"
-});`
+})`
   },
   {
     id: 'medium',
     label: 'Medium Effort',
-    tokens: '~2,000 tokens',
+    flag: '--effort medium',
     color: '#6366f1',
-    depth: 'Balanced Step-by-Step',
-    speed: '~2.5s',
+    depth: 'Balanced step-by-step',
     recommendedModel: 'gemini-3.8-flash-medium',
     useCase: 'Day-to-day pair programming: bug investigation, code refactoring across 3-5 files, unit test creation, and API contract design.',
-    snippet: `await useGemini({
+    snippet: `ask-gemini({
   prompt: "Refactor @src/utils/commandExecutor.ts to handle process signals",
   model: "gemini-3.8-flash-medium",
   effort: "medium"
-});`
+})`
   },
   {
     id: 'high',
     label: 'High Effort',
-    tokens: '~8,000+ tokens',
+    flag: '--effort high',
     color: '#a855f7',
-    depth: 'Deep Algorithmic Thinking',
-    speed: '~4.0s - 8.0s',
+    depth: 'Deep algorithmic thinking',
     recommendedModel: 'gemini-3.8-flash-high',
     useCase: 'Security vulnerability audits, race conditions, distributed architecture design, mathematical algorithms, and comprehensive system planning (gemini-plan).',
-    snippet: `await useGeminiPlan({
+    snippet: `gemini-plan({
   task: "Design distributed lock mechanism with Redis & auto-renew",
   context: "High-throughput financial ledger API with strict consistency",
   effort: "high"
-});`
+})`
   }
 ]
 
@@ -246,7 +239,7 @@ const current = computed(() => levels.find(l => l.id === selected.value) || leve
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 16px;
   padding-bottom: 16px;

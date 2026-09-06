@@ -1,6 +1,6 @@
 import { Logger } from "../utils/logger.js";
 import { CLI, APPROVAL_MODES, ENV, MODELS } from "../constants.js";
-import { executeCommand, COMMAND_TIMEOUT_MS } from "../utils/commandExecutor.js";
+import { executeCommand, COMMAND_TIMEOUT_MS, type CommandError } from "../utils/commandExecutor.js";
 import {
   inlineFileReferences,
   prepareChangeModePrompt,
@@ -12,7 +12,17 @@ import {
   readTranscriptResponse,
 } from "./agyTranscript.js";
 import { probeAgyCapabilities, type AgyCapabilities } from "./agyCapabilities.js";
-import { parseAgyJsonResponse, ptyEnabled, runAgyUnderPty, type ParseAgyJsonOptions } from "./agyOutput.js";
+import {
+  agyConversationId,
+  agyErrorText,
+  agyResult,
+  agyResultNotices,
+  parseAgyJsonResponse,
+  ptyEnabled,
+  runAgyUnderPty,
+  streamJsonUserMessage,
+  type ParseAgyJsonOptions,
+} from "./agyOutput.js";
 import type { Backend, BackendRunOptions, ModelInfo } from "./types.js";
 
 /**
@@ -20,7 +30,8 @@ import type { Backend, BackendRunOptions, ModelInfo } from "./types.js";
  *
  * Provides deep integration with Gemini 3.8 Flash and Gemini 3.1 Pro via `agy`:
  *  1. Direct stdout & structured JSON: Modern `agy` emits clean JSON stdout
- *     via `--output-format json`, including token usage and structured outputs.
+ *     via `--output-format json`/`stream-json`, including token usage and
+ *     structured outputs; the prompt itself travels on stdin (stream-json).
  *  2. Model selection: Full model support across Gemini 3.8 Flash (high/medium/low),
  *     Gemini 3.7 Flash, Gemini 3.1 Pro (high/low), and aliases.
  *  3. Reasoning effort: Direct control over thinking tokens via `--effort` (low/medium/high).
@@ -62,21 +73,28 @@ export function buildAgyPrompt(prompt: string, opts: BackendRunOptions): string 
   return inlineFileReferences(processed);
 }
 
-export function buildAgyArgs(opts: BackendRunOptions, caps?: AgyCapabilities): string[] {
+/**
+ * One rule for every flag: send it only when the installed agy advertises it in
+ * `--help`. An unknown flag makes agy exit non-zero and fail the whole run, so a
+ * flag we are not sure about is worth less than the request it would break — and
+ * an unadvertised flag would have been ignored anyway. `caps` is required rather
+ * than optional so no caller can accidentally opt out of the probe.
+ */
+export function buildAgyArgs(opts: BackendRunOptions, caps: AgyCapabilities): string[] {
   const args: string[] = [];
 
   // Model selection (supported in modern agy print mode)
-  if (opts.model && (!caps || caps.modelFlag)) {
+  if (opts.model && caps.modelFlag) {
     args.push(CLI.FLAGS.MODEL_LONG, normalizeAgyModel(opts.model));
   }
 
   // Reasoning effort: low | medium | high
-  if (opts.effort && (!caps || caps.effortFlag)) {
+  if (opts.effort && caps.effortFlag) {
     args.push(CLI.FLAGS.EFFORT, opts.effort);
   }
 
   // Structured output schema
-  if (opts.jsonSchema && (!caps || caps.jsonSchemaFlag)) {
+  if (opts.jsonSchema && caps.jsonSchemaFlag) {
     const schemaStr =
       typeof opts.jsonSchema === "string"
         ? opts.jsonSchema
@@ -85,12 +103,12 @@ export function buildAgyArgs(opts: BackendRunOptions, caps?: AgyCapabilities): s
   }
 
   // Execution mode: accept-edits | plan
-  if (opts.mode && (!caps || caps.modeFlag)) {
+  if (opts.mode && caps.modeFlag) {
     args.push(CLI.FLAGS.MODE, opts.mode);
   }
 
   // Additional directories for workspace visibility
-  if (opts.addDirs && Array.isArray(opts.addDirs) && (!caps || caps.addDirFlag)) {
+  if (opts.addDirs && Array.isArray(opts.addDirs) && caps.addDirFlag) {
     for (const dir of opts.addDirs) {
       if (dir && typeof dir === "string") {
         args.push(CLI.FLAGS.ADD_DIR, dir);
@@ -98,41 +116,53 @@ export function buildAgyArgs(opts: BackendRunOptions, caps?: AgyCapabilities): s
     }
   }
 
-  // Sessions: --continue resumes the most recent (global!); --conversation <id>
-  // a specific one. Prefer an explicit id whenever we have one.
-  if (opts.conversationId) {
-    args.push(CLI.FLAGS.CONVERSATION, opts.conversationId);
-  } else if (opts.resume) {
-    if (opts.resume === "latest") args.push("--continue");
-    else args.push(CLI.FLAGS.CONVERSATION, opts.resume);
-  } else if (opts.sessionId) {
-    args.push(CLI.FLAGS.CONVERSATION, opts.sessionId);
+  // Custom agent defined in an agent.md.
+  if (opts.agent && caps.agentFlag) {
+    args.push(CLI.FLAGS.AGENT, opts.agent);
   }
 
-  if (opts.sandbox) args.push("--sandbox"); // forwarded, but see sandbox notice
+  // A prompt whose text starts with "/" is expanded by agy as a command or skill
+  // instead of reaching the model — "/usage" answered with quota tables. Off
+  // unless the caller wants those (free, zero-token) commands deliberately.
+  if (!opts.allowSlashCommands && caps.disableSlashCommands) {
+    args.push(CLI.FLAGS.DISABLE_SLASH_COMMANDS);
+  }
+
+  // Sessions: --conversation <id> resumes a specific conversation.
+  if (opts.conversationId && caps.conversationId) {
+    args.push(CLI.FLAGS.CONVERSATION, opts.conversationId);
+  }
+
+  // Forwarded, but see the sandbox notice — we never claim it isolates -p.
+  if (opts.sandbox && caps.sandboxFlag) args.push("--sandbox");
 
   // agy has no graded approval modes; only "skip all prompts" maps cleanly.
-  if (opts.approvalMode === APPROVAL_MODES.YOLO) {
+  if (opts.approvalMode === APPROVAL_MODES.YOLO && caps.dangerouslySkipPermissions) {
     args.push("--dangerously-skip-permissions");
   }
 
   return args;
 }
 
-/** Track agy's --print-timeout (default 5m) to our cap. Override: AGY_PRINT_TIMEOUT. */
-export function agyPrintTimeoutArg(): string {
+/**
+ * Track agy's --print-timeout (default 5m) to our cap. Override: AGY_PRINT_TIMEOUT.
+ *
+ * It must stay *strictly* under the wrapper's SIGKILL deadline, or the wrapper
+ * kills agy before agy can report its own timeout with a usable message: the old
+ * `max(60, total - 60)` gave exactly 60s against a 60s kill at GEMINI_MCP_TIMEOUT=1.
+ * Below 120s there is no room to reserve a whole minute, so we halve instead.
+ */
+export function agyPrintTimeoutArg(wrapperTimeoutMs: number = COMMAND_TIMEOUT_MS): string {
   const override = process.env[ENV.AGY_PRINT_TIMEOUT]?.trim();
   if (override) return override;
-  const seconds = Math.max(60, Math.floor(COMMAND_TIMEOUT_MS / 1000) - 60);
+  const total = Math.floor(wrapperTimeoutMs / 1000);
+  const seconds = total > 120 ? total - 60 : Math.max(1, Math.floor(total / 2));
   return `${seconds}s`;
 }
 
-/** The conversation id to read back, if we already know it from the args. */
-function explicitConversationId(opts: BackendRunOptions): string | undefined {
-  if (opts.conversationId) return opts.conversationId;
-  if (opts.resume && opts.resume !== "latest") return opts.resume;
-  if (!opts.resume && opts.sessionId) return opts.sessionId;
-  return undefined;
+/** A prompt the caller wants agy's own command layer to answer, not the model. */
+export function isSlashCommand(prompt: string, opts: BackendRunOptions): boolean {
+  return !!opts.allowSlashCommands && prompt.trimStart().startsWith("/");
 }
 
 /** One raw output channel → the reply, honouring JSON mode; undefined if empty. */
@@ -198,9 +228,22 @@ export const agyBackend: Backend = {
       const finalPrompt = buildAgyPrompt(prompt, opts);
       const baseArgs = buildAgyArgs(opts, caps);
 
-      // When the build supports it, ask for JSON so we read a clean answer off
-      // stdout instead of scraping the transcript.
-      if (caps.outputFormatJson) baseArgs.push(CLI.FLAGS.OUTPUT_FORMAT, "json");
+      // Prompt delivery. stream-json puts the prompt on stdin, so an inlined
+      // @file prompt is not bounded by the OS argv cap (32,767 chars on Windows:
+      // `@package-lock.json` used to die with spawn ENAMETOOLONG). Older builds
+      // keep `-p <prompt>`, with JSON stdout when they have it.
+      //
+      // One exception: agy answers a slash command in the CLI itself, and refuses
+      // to under stream-json ("/usage is answered by the CLI itself and is
+      // unavailable with --input-format stream-json"). So a caller who asked for
+      // slash expansion gets argv delivery — a command is short, and this is the
+      // only way `allowSlashCommands` does what it says.
+      const viaStdin = caps.streamJsonInput && !isSlashCommand(finalPrompt, opts);
+      if (viaStdin) {
+        baseArgs.push(CLI.FLAGS.INPUT_FORMAT, "stream-json", CLI.FLAGS.OUTPUT_FORMAT, "stream-json");
+      } else if (caps.outputFormatJson) {
+        baseArgs.push(CLI.FLAGS.OUTPUT_FORMAT, "json");
+      }
       if (caps.printTimeout) baseArgs.push("--print-timeout", agyPrintTimeoutArg());
 
       const parseOpts: ParseAgyJsonOptions = {
@@ -208,26 +251,38 @@ export const agyBackend: Backend = {
         includeUsage: opts.includeUsage,
       };
 
-      // agy requires -p <prompt> in print mode
-      const argsWithPrompt = [...baseArgs, CLI.FLAGS.PROMPT, finalPrompt];
+      const argsWithPrompt = viaStdin ? baseArgs : [...baseArgs, CLI.FLAGS.PROMPT, finalPrompt];
+      const stdinData = viaStdin ? streamJsonUserMessage(finalPrompt) : undefined;
 
       // 1) Direct stdout — the clean path (JSON when available, else plain text).
       let stdout = "";
       let printError: Error | undefined;
       try {
-        stdout = await executeCommand(CLI.COMMANDS.AGY, argsWithPrompt, opts.onProgress);
+        stdout = await executeCommand(CLI.COMMANDS.AGY, argsWithPrompt, opts.onProgress, stdinData);
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
         // Not installed: nothing further down the ladder can succeed.
         if (err.message.includes("Could not find")) throw err;
+        // agy's own verdict (bad model, quota, auth) is JSON on stdout: surface it verbatim.
+        const verdict = agyErrorText(agyResult((err as CommandError).stdout ?? "", viaStdin));
+        if (verdict) throw new Error(verdict);
         Logger.warn(`agy: print-mode failed (${err.message}); trying recovery.`);
         printError = err;
       }
-      const direct = replyFrom(stdout, caps.outputFormatJson, parseOpts);
+      const result = agyResult(stdout, viaStdin);
+      const verdict = agyErrorText(result);
+      if (verdict) throw new Error(verdict); // exit 0 but status ERROR
+      const observedId = agyConversationId(result);
+      if (observedId) opts.onConversationId?.(observedId);
+      for (const n of agyResultNotices(result)) opts.onNotice?.(n);
+      const direct = viaStdin
+        ? result && parseAgyJsonResponse(JSON.stringify(result), parseOpts)
+        : replyFrom(stdout, caps.outputFormatJson, parseOpts);
       if (direct) return direct;
 
       // 2) Opt-in PTY recovery: a TTY-only build prints under a pseudo-terminal.
-      if (ptyEnabled()) {
+      // (Not for stdin delivery: the prompt isn't in argsWithPrompt then.)
+      if (!viaStdin && ptyEnabled()) {
         const ptyOut = await runAgyUnderPty(argsWithPrompt, opts.onProgress);
         const fromPty = replyFrom(ptyOut, caps.outputFormatJson, parseOpts);
         if (fromPty) return fromPty;
@@ -236,7 +291,7 @@ export const agyBackend: Backend = {
       // 3) Transcript recovery. Trust an explicit/cwd conversation only if it was
       // written during this run; a fast agy failure (e.g. dropped auth) must not
       // surface a stale reply from a previous conversation in this cwd.
-      const explicitId = explicitConversationId(opts);
+      const explicitId = opts.conversationId;
       const cwdId = conversationIdForCwd(cwd);
       const id =
         (explicitId && conversationFreshSince(explicitId, startMs) ? explicitId : undefined) ??
@@ -251,6 +306,7 @@ export const agyBackend: Backend = {
             'Run `agy -p "hi"` directly to check for an expired login or exhausted quota.',
         );
       }
+      opts.onConversationId?.(id);
       return readTranscriptResponse(id);
     });
     // Keep the chain alive regardless of this call's outcome.

@@ -18,7 +18,6 @@
     "test:integration": "node scripts/run-tests.mjs integration",
     "test:e2e": "npm run build && node scripts/run-tests.mjs e2e",
     "lint": "tsc -p tsconfig.test.json",
-    "contribute": "tsx src/contribute.ts",
     "prepublishOnly": "echo '⚠️  Remember to test locally first!' && npm run build",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -42,8 +41,9 @@
     "url": "https://github.com/V-Songbird/gemini-relay/issues"
   },
   "homepage": "https://v-songbird.github.io/gemini-relay/",
+  "//engines": "18.19 is the real floor: node:test needs 18, the tsx --import loader in scripts/run-tests.mjs needs 18.19, and CI runs 18.x/20.x/22.x. The SQLite transcript fallback in src/backends/agyTranscript.ts additionally needs node:sqlite (22.5+), but it is an optional last-resort path that reports its own runtime error, so it does not raise this floor.",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.19.0"
   },
   "files": [
     "dist/",

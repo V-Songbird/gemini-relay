@@ -15,9 +15,12 @@ export const pingTool: UnifiedTool = {
     description: "Echo test message with structured response.",
   },
   category: 'simple',
-  execute: async (args, onProgress) => {
-    const message = args.prompt || args.message || "Pong!";
-    return executeCommand(CLI.COMMANDS.ECHO, [message as string], onProgress);
+  execute: async (args, _onProgress) => {
+    // A liveness echo needs no subprocess. Spawning the cmd.exe `echo` builtin
+    // returned the message wrapped in the double quotes commandExecutor adds for
+    // cmd safety — `ping "hello & world"` answered `"hello & world"` (audit bug 10).
+    // Only `prompt` survives: the zod schema strips every other key.
+    return String(args.prompt || "Pong!");
   }
 };
 

@@ -129,8 +129,11 @@ export const CLI = {
     MODE: "--mode",
     ADD_DIR: "--add-dir",
     OUTPUT_FORMAT: "--output-format",
+    INPUT_FORMAT: "--input-format", // stream-json: prompt on stdin, no argv length cap
     CONVERSATION: "--conversation",
     CONTINUE: "--continue",
+    AGENT: "--agent", // run a custom agent defined in an agent.md
+    DISABLE_SLASH_COMMANDS: "--disable-slash-commands", // keep a "/…" prompt from expanding into a command/skill
   },
   // Default values
   DEFAULTS: {

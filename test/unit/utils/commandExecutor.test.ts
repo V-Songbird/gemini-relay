@@ -7,6 +7,7 @@ import {
   selectWindowsGeminiCandidate,
   executeCommand,
 } from "../../../src/utils/commandExecutor.js";
+import { Logger } from "../../../src/utils/logger.js";
 
 describe("Node Utilities: Command Executor & Quoting", () => {
   test("quoteForCmd wraps in double quotes and doubles embedded quotes", () => {
@@ -65,6 +66,55 @@ describe("Node Utilities: Command Executor & Quoting", () => {
     assert.doesNotMatch(msg, /@google\/gemini-cli/);
   });
 
+  test("buildEnoentErrorMessage names the real Windows install path", () => {
+    // Stub the platform rather than guarding on it: CI is ubuntu-latest, so a
+    // `if (process.platform === "win32")` guard leaves this branch — the only
+    // pin on the corrected install location — unverified everywhere it runs.
+    const real = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    try {
+      const msg = buildEnoentErrorMessage("agy");
+      // The real location on a current build; the legacy Antigravity\ directory
+      // may still be mentioned, but never on its own.
+      assert.match(msg, /%LOCALAPPDATA%\\agy\\bin\\agy\.exe/);
+      assert.match(msg, /where agy/);
+    } finally {
+      Object.defineProperty(process, "platform", real);
+    }
+  });
+
+  test("Logger.commandExecution logs argv shape, never an argument body", () => {
+    // Prompts now carry whole inlined files; echoing them would dump megabytes
+    // to the MCP server's stderr and into client logs on every spawn.
+    const prompt = "SECRET_PROMPT_BODY ".repeat(50);
+    const lines: string[] = [];
+    const realWarn = console.warn;
+    const realEnv = process.env.NODE_ENV;
+    delete process.env.NODE_ENV; // Logger mutes non-error output under NODE_ENV=test
+    console.warn = (...a: unknown[]) => void lines.push(a.map(String).join(" "));
+    try {
+      Logger.commandExecution("agy", ["-p", prompt, "--output-format=json", "sonnet"], 1234);
+    } finally {
+      console.warn = realWarn;
+      if (realEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = realEnv;
+    }
+    const out = lines.join("\n");
+    assert.doesNotMatch(out, /SECRET_PROMPT_BODY/);
+    assert.match(out, / -p /); // flags stay legible
+    assert.match(out, /--output-format=json/);
+    assert.match(out, new RegExp(`<${prompt.length} chars>`)); // body becomes a length
+    assert.match(out, /<6 chars>/); // so does a non-flag value
+    // Nor may the Logger retain the argv: the old start-time map was write-only,
+    // and the timeout / spawn-error paths never call commandComplete, so each
+    // failed run pinned a whole inlined prompt for the life of the MCP server.
+    const retained = Object.getOwnPropertyNames(Logger).map((k) => {
+      const v = (Logger as unknown as Record<string, unknown>)[k];
+      return v instanceof Map ? JSON.stringify([...v]) : String(v);
+    });
+    assert.ok(!retained.some((v) => v.includes("SECRET_PROMPT_BODY")));
+  });
+
   test("executeCommand kills and rejects a child that outlives the timeout", async () => {
     // A child that would run for 30s, bounded to 200ms. Without the timeout a
     // hung CLI would leave this promise (and the agy queue) pending forever.
@@ -94,6 +144,18 @@ describe("Node Utilities: Command Executor & Quoting", () => {
         "process.stderr.write('Individual quota reached'); process.exit(0)",
       ]),
       /Individual quota reached/,
+    );
+  });
+
+  test("executeCommand keeps stdout on a non-zero exit so a CLI's JSON verdict survives", async () => {
+    // agy exits 1 with its error as JSON on stdout and nothing on stderr.
+    await assert.rejects(
+      executeCommand(process.execPath, [
+        "-e",
+        "console.log('{\"error\":\"bad model\"}'); process.exit(1)",
+      ]),
+      (e: Error & { stdout?: string; exitCode?: number | null }) =>
+        /bad model/.test(e.message) && e.stdout?.includes('"error"') === true && e.exitCode === 1,
     );
   });
 

@@ -1,106 +1,58 @@
 # Sandbox Mode
 
-Execute code safely in an isolated environment.
+`sandbox` is a boolean parameter on `ask-gemini`, off by default. It asks the CLI to run sandboxed; it is not an isolation layer the relay provides.
 
-## What is Sandbox Mode?
+On the default `agy` backend it isolates nothing, and the reply says so. This page is about what does protect you instead.
 
-Sandbox mode allows Gemini to write and test code in a secure, isolated environment without affecting your system.
-
-## Basic Usage
-
-```
-/gemini-cli:sandbox create a Python script that sorts a list
-```
-
-## How It Works
-
-1. **Request** → You ask for code to be created/tested
-2. **Generation** → Gemini writes the code
-3. **Execution** → Code runs in isolated environment
-4. **Results** → Output returned safely
-
-## Use Cases
-
-### Algorithm Testing
-```
-/gemini-cli:sandbox implement and test quicksort in JavaScript
+```json
+{
+  "name": "ask-gemini",
+  "arguments": {
+    "prompt": "write and run a quicksort, then show the output",
+    "sandbox": true
+  }
+}
 ```
 
-### Data Processing
-```
-/gemini-cli:sandbox parse this CSV and show statistics: [data]
-```
+## What it does on each backend
 
-### Proof of Concepts
-```
-/gemini-cli:sandbox create a working web scraper example
-```
+| Backend | Flag sent | What the relay claims |
+| :--- | :--- | :--- |
+| `agy` (default) | `--sandbox` | Nothing. The backend declares that it does **not** isolate tool execution in headless mode. |
+| `gemini` (legacy) | `-s` | The Gemini CLI's own sandbox; that backend declares tool execution isolated. |
 
-## Safety Features
+On agy, `runWithBackend` sees the request against a backend whose `sandboxIsolatesToolExecution` is `false` and prefixes the reply with a notice:
 
-- **Isolated Execution**: No access to your file system
-- **Resource Limits**: CPU and memory constraints
-- **Time Limits**: Prevents infinite loops
-- **No Network**: Cannot make external requests
+> ⚠️ Backend "agy" does not isolate tool execution in headless mode; the sandbox request cannot be guaranteed.
 
-## Supported Languages
+The reason is in the backend source: `-p` runs tools with your own privileges. `gemini-models` reports the same thing as **Tool Sandbox: ⚠️ Host-executed in headless**.
 
-- Python
-- JavaScript/Node.js
-- Ruby
-- Go
-- Java
-- C++
-- More coming soon!
+Whatever restrictions the installed `agy` applies to `--sandbox` are agy's own. The relay neither implements nor verifies them, so do not treat `sandbox: true` as a reason to run something you would not run yourself.
 
-## Best Practices
+## What actually protects you
 
-### 1. Be Specific
-```
-// Good
-create a function that validates email addresses with tests
+Two things, and neither is the `sandbox` parameter.
 
-// Vague
-make something that checks emails
-```
+**The project-root jail, on the way in.** Every `@` reference in a prompt is resolved, canonicalized and rejected if it lands outside the project root — symlinks included — before a single byte is read. Directory and glob expansion additionally skips `node_modules`, `.git`, `dist` and secret-looking files. See [Context Inlining](/concepts/file-analysis).
 
-### 2. Include Test Cases
-```
-implement binary search with edge case handling and show test results
-```
+The jail governs what the relay inlines, not what the agent then does. agy's own tools read and write under the permission settings in `~/.gemini/antigravity-cli/settings.json`, which may allow paths outside the project root.
 
-### 3. Iterative Development
-```
-// First iteration
-create a basic REST API
+**agy's own permission settings, on the way out.** Since agy 1.1.5, headless runs honour the permission settings persisted on your machine: a tool call those settings do not allow is refused, with nobody there to approve it.
 
-// Refine
-add authentication to the API
+The relay surfaces those refusals rather than swallowing them. A run that had actions denied comes back with a notice naming them, so an edit that never happened does not read as success.
 
-// Test
-show example requests and responses
-```
+`skipPermissions: true` gives that up deliberately, and only on a build that advertises `--dangerously-skip-permissions`. If the installed agy does not advertise that flag, or the `--help` probe failed, it is dropped and the persisted permission settings still apply — see [How It Works](/concepts/how-it-works).
 
-## Limitations
+## Practical advice
 
-- No file system access
-- No network requests
-- Limited execution time (30s)
-- Memory limit (512MB)
+If you need code executed under real isolation, run it yourself in a container and hand the output to Gemini. If you only need the code *written* and reasoned about without anything being touched, that is what `mode: "plan"` is for — it is read-only by design, and it is what [`gemini-plan`](/usage/commands) uses.
 
-## Examples
-
-### Testing Algorithms
-```
-/gemini-cli:sandbox benchmark bubble sort vs quick sort with 1000 items
-```
-
-### Learning Code
-```
-/gemini-cli:sandbox show me how promises work in JavaScript with examples
-```
-
-### Debugging
-```
-/gemini-cli:sandbox why does this code fail: [paste code]
+```json
+{
+  "name": "ask-gemini",
+  "arguments": {
+    "prompt": "@src/data-processor.ts this is slow — how would you optimize it?",
+    "mode": "plan"
+  }
+}
 ```

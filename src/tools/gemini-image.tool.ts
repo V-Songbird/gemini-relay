@@ -10,8 +10,11 @@ const BRAIN_DIR = path.join(AGY_BASE, 'brain');
 
 const geminiImageArgsSchema = z.object({
   prompt: z.string().min(1).describe("Detailed visual description of the image to create (subject, environment, lighting, artistic style, colors)."),
-  aspectRatio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3']).default('1:1').describe("Aspect ratio of the generated image (default: '1:1')."),
-  outputPath: z.string().optional().describe("Optional relative file path in your project workspace where the generated image file should be copied (e.g., 'assets/hero.jpg')."),
+  // The full aspect-ratio enum named by the agy binary's image tool; the tool
+  // previously offered only the first seven (audit improvement 6).
+  aspectRatio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '21:9', '4:1', '1:4', '8:1', '1:8']).default('1:1').describe("Aspect ratio of the generated image (default: '1:1')."),
+  size: z.enum(['512', '1K', '2K', '4K']).optional().describe("Optional output resolution ('512', '1K', '2K' or '4K'). Omit to let Gemini pick."),
+  outputPath: z.string().optional().describe("Optional path, relative to the project root, where the generated image should be copied (e.g., 'assets/hero.jpg'). A path escaping the project root is refused."),
 });
 
 /** Find recently created image files in agy brain conversation directories. */
@@ -70,23 +73,26 @@ function extractImagePathFromText(text: string): string | undefined {
 
 export const geminiImageTool: UnifiedTool = {
   name: "gemini-image",
-  description: "Generate images using Google Gemini & Imagen directly from text descriptions. Supports aspect ratio selection and optional export directly into your project workspace.",
+  description: "Generate images from text descriptions through the Antigravity CLI's image generation tool. Supports aspect ratio and output size selection, plus optional export directly into your project.",
   zodSchema: geminiImageArgsSchema,
   prompt: {
     description: "Generate an image from a prompt with optional aspect ratio and local file output.",
   },
   category: 'gemini',
   execute: async (args, onProgress) => {
-    const { prompt, aspectRatio = '1:1', outputPath } = args;
+    const { prompt, aspectRatio = '1:1', size, outputPath } = args;
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       throw new Error("Please provide a prompt describing the image you want to generate.");
     }
 
     const startMs = Date.now();
+    // Size and ratio ride in the prompt text, never in --model: --model picks the
+    // planner model and rejects image model ids ("model ... is not recognized").
+    const sizeLine = size ? `\n- Image Size: ${size}` : '';
     const generationPrompt = `Please generate an image based on the following creative specifications:
 - Prompt: ${prompt.trim()}
-- Aspect Ratio: ${aspectRatio}
+- Aspect Ratio: ${aspectRatio}${sizeLine}
 
 Use your image generation tool to produce the asset.`;
 
@@ -106,7 +112,7 @@ Use your image generation tool to produce the asset.`;
       const outPathStr = outputPath.trim();
       const resolvedTarget = path.resolve(cwd, outPathStr);
 
-      // Security check: ensure target does not escape project workspace root
+      // Security check: ensure target does not escape the project root
       const relative = path.relative(cwd, resolvedTarget);
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new Error(`Invalid outputPath: "${outPathStr}" escapes the project workspace directory.`);
@@ -125,7 +131,7 @@ Use your image generation tool to produce the asset.`;
     const responseText = `### 🎨 Gemini Image Generation Completed
 
 - **Prompt:** "${prompt.trim()}"
-- **Aspect Ratio:** \`${aspectRatio}\`
+- **Aspect Ratio:** \`${aspectRatio}\`${size ? `\n- **Size:** \`${size}\`` : ''}
 - **Backend:** \`${backend.toUpperCase()}\`${destinationNotice}${imageEmbed}
 
 ${text}`;

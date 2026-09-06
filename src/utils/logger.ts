@@ -32,32 +32,42 @@ export class Logger {
     console.warn(this.formatMessage(message), ...args);
   }
 
+  // The shape of a tool call, never its values. `prompt` alone can be a whole
+  // pasted file before @-expansion even touches it, and this line reached the
+  // MCP client's log on every call — the same leak as commandExecution below.
   static toolInvocation(toolName: string, args: any): void {
-    this.warn("Raw:", JSON.stringify(args, null, 2));
+    const shape =
+      args && typeof args === "object"
+        ? Object.entries(args)
+            .map(([k, v]) => `${k}=${typeof v === "string" ? `<${v.length} chars>` : JSON.stringify(v)}`)
+            .join(" ")
+        : "";
+    this.warn(`Tool ${toolName}(${shape})`);
   }
 
-  static toolParsedArgs(prompt: string, model?: string, sandbox?: boolean, changeMode?: boolean): void {
-    this.warn(`Parsed prompt: "${prompt}"\nchangeMode: ${changeMode || false}`);
-  }
+  // A flag as agy spells them: `-p`, `--model`, `--output-format=json`. Never
+  // matches a prompt, which carries whitespace and is usually far longer.
+  private static readonly FLAG = /^--?[\w-]+(=[\w.,:/@-]*)?$/;
 
+  // Log the shape of the argv, never its bodies. Prompts now carry whole inlined
+  // files, so echoing each argument dumped megabytes of prompt text to the MCP
+  // server's stderr — and from there into client logs — on every spawn.
   static commandExecution(command: string, args: string[], startTime: number): void {
-    this.warn(`[${startTime}] Starting: ${command} ${args.map((arg) => `"${arg}"`).join(" ")}`);
-    
-    // Store command execution start for timing analysis
-    this._commandStartTimes.set(startTime, { command, args, startTime });
+    const shape = args
+      .map((arg) => (this.FLAG.test(arg) ? arg : `<${arg.length} chars>`))
+      .join(" ");
+    this.warn(`[${startTime}] Starting: ${command} ${shape}`);
   }
 
-  // Track command start times for duration calculation
-  private static _commandStartTimes = new Map<number, { command: string; args: string[]; startTime: number }>();
-
+  // No argv is retained between the two calls below: a map keyed on startTime
+  // used to hold { command, args }, but nothing ever read it and the timeout and
+  // spawn-error paths in executeCommand reject without calling commandComplete,
+  // so every failed run pinned its whole inlined prompt for the server's life.
   static commandComplete(startTime: number, exitCode: number | null, outputLength?: number): void {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     this.warn(`[${elapsed}s] Process finished with exit code: ${exitCode}`);
     if (outputLength !== undefined) {
       this.warn(`Response: ${outputLength} chars`);
     }
-
-    // Clean up command tracking
-    this._commandStartTimes.delete(startTime);
   }
 }

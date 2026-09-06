@@ -39,14 +39,34 @@ describe("Backends: selection", () => {
     assert.equal(getBackend({ GEMINI_MCP_BACKEND: "gemini" }, AFTER), geminiBackend);
   });
 
-  test("backendSelection surfaces the post-retirement auto-switch notice", () => {
+  test("backendSelection surfaces the post-retirement auto-switch notice once", () => {
     __resetRetirementNudgeForTest();
     const { backend, notices } = backendSelection({}, AFTER);
     assert.equal(backend, agyBackend);
     assert.equal(notices.length, 1);
     assert.match(notices[0], /retired on 2026-06-18/);
+    // Once per process, counted from delivery: it used to be unguarded and
+    // prefixed every single reply.
+    withNotices(notices, "body");
+    assert.deepEqual(backendSelection({}, AFTER).notices, []);
+    assert.deepEqual(backendSelection({}, AFTER).notices, []);
     // No notice when the backend was chosen explicitly.
     assert.deepEqual(backendSelection({ GEMINI_MCP_BACKEND: "agy" }, AFTER).notices, []);
+    // ...and the reset seam brings it back for the next test.
+    __resetRetirementNudgeForTest();
+    assert.equal(backendSelection({}, AFTER).notices.length, 1);
+  });
+
+  test("the one-shot notice is spent on delivery, not on being produced", () => {
+    // ping/Help (simple-tools) and gemini-doctor call backendSelection for the
+    // backend name and drop the notices; that must not burn the single shot.
+    __resetRetirementNudgeForTest();
+    backendSelection({}, AFTER); // notices thrown away
+    backendSelection({}, AFTER); // ...twice
+    const { notices } = backendSelection({}, AFTER);
+    assert.equal(notices.length, 1);
+    assert.match(withNotices(notices, "body"), /retired on 2026-06-18/);
+    assert.deepEqual(backendSelection({}, AFTER).notices, []);
   });
 
   test("backendSelection nudges once in the final countdown, then stays quiet", () => {
@@ -56,7 +76,8 @@ describe("Backends: selection", () => {
     assert.equal(first.backend, geminiBackend);
     assert.equal(first.notices.length, 1);
     assert.match(first.notices[0], /retires on 2026-06-18/);
-    // Once per process: the second call is silent.
+    // Once per process: after delivery, the next call is silent.
+    withNotices(first.notices, "body");
     assert.deepEqual(backendSelection({}, soon).notices, []);
   });
 

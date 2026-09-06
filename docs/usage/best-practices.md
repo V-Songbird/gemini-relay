@@ -1,217 +1,65 @@
 # Best Practices
 
-Get the most out of Gemini MCP Tool with these proven practices.
+Advice, not specification. The parameters live in the [Tool Reference](./commands.md); what `@` does exactly lives in [Context inlining](../concepts/file-analysis.md).
 
-## File Selection
+## Point at files, or let Gemini look
 
-### Start Specific
-Begin with individual files before expanding scope:
-```bash
-# Good progression
-@auth.js                    # Start here
-@auth.js @user.model.js     # Add related files
-@src/auth/*.js              # Expand to module
-@src/**/*.js                # Full codebase analysis
-```
+Both work. They fail differently.
 
-### Group Related Files
-Include configuration with implementation:
-```bash
-# Good
-@webpack.config.js @src/index.js  # Config + entry point
-@.env @config/*.js                # Environment + config
-@schema.sql @models/*.js          # Database + models
+**Name the files with `@`** when you know which ones matter. You get exactly the corpus you asked for, every time, and you can see it in the prompt. Start narrow — one file, then its neighbours, then the module — and widen only when the answer says you need to.
 
-# Less effective
-@**/*.js                         # Too broad without context
-```
+**Say nothing and let Gemini go looking** when you do not know where the problem is. Gemini has file, search and shell tools and uses them in whatever folder the server runs in. That is the right call for *"find the riskiest code in this repo"* and the wrong one for *"review this function"*.
 
-## Query Optimization
+Pointing at a folder that has already been ruled out is the common waste. `@node_modules/**/*.js` is worse than useless: `node_modules` is skipped during expansion, so the token matches nothing and reaches the model as literal text.
 
-### Be Specific About Intent
-```bash
-# Vague
-"analyze this code"
+## Keep the reference inside what fits
 
-# Specific
-"identify performance bottlenecks and suggest optimizations"
-"check for SQL injection vulnerabilities"
-"explain the authentication flow step by step"
-```
+There is a cap on how much a prompt can inline, and hitting it does not fail the call — it quietly narrows the coverage.
 
-### Provide Success Criteria
-```bash
-# Good
-"refactor this to be more testable, following SOLID principles"
-"optimize for readability, targeting junior developers"
-"make this TypeScript-strict compliant"
-```
+Read the prompt for `TRUNCATED`, `OMITTED:` and `UNREADABLE:`. Any of the three means the answer was written on partial coverage, so narrow the reference and ask again. A binary file is the one drop that says nothing at all: it is skipped, and its token stays in the prompt as written, so `@logo.png` arrives as the text `@logo.png`.
 
-## Token Management
+The exact caps are in [Context inlining](../concepts/file-analysis.md). With `GEMINI_MCP_BACKEND=gemini` none of this is the relay's business — the legacy Gemini CLI does its own inlining.
 
-### Gemini Model Selection
-- **Quick tasks**: Use Flash (1M tokens)
-- **Full analysis**: Use Pro (2M tokens)
-- **Simple queries**: Use Flash-8B
+## Secrets
 
-### Efficient File Inclusion
-```bash
-# Inefficient
-@node_modules/**/*.js  # Don't include dependencies
+Expansion protects you. Naming a file does not.
 
-# Efficient
-@src/**/*.js @package.json  # Source + manifest
-```
+Expanding a directory or a glob skips secret-looking files, so one broad token cannot sweep up credentials. Name `@.env` yourself and it is sent, contents and all — that is read as your deliberate choice, so make sure it is one.
 
-## Iterative Development
+Paths that leave the project are refused before a byte is read, and a refusal fails the whole call. So keep every reference relative to the project root; when Gemini genuinely needs a directory outside it, that is what `addDirs` is for. Which names count as secret, and what the jail checks, are in [Context inlining](../concepts/file-analysis.md).
 
-### Build on Previous Responses
-```bash
-1. "analyze the architecture"
-2. "focus on the authentication module you mentioned"
-3. "show me how to implement the improvements"
-4. "write tests for the new implementation"
-```
+## When high effort earns its cost
 
-### Save Context Between Sessions
-```bash
-# Create a context file
-/gemini-cli:analyze @previous-analysis.md @src/new-feature.js 
-continue from our last discussion
-```
+Reasoning effort buys thinking depth, and you pay for it in time and quota. Spend it where a wrong answer is expensive.
 
-## Error Handling
+- **Worth it**: security audits, concurrency, cryptography, tricky algorithms, an architecture you are about to commit to. `gemini-3.1-pro-high` with `effort: "high"`.
+- **Not worth it**: explaining a file, summarizing a diff, counting things, drafting a docstring. The Flash models at `-medium` or `-low`, or `effort: "low"`, answer these just as well and faster.
 
-### Include Error Context
-```bash
-# Good
-@error.log @src/api.js "getting 500 errors when calling /user endpoint"
+`gemini-plan` already runs at high effort by default, so you do not need to ask for it there.
 
-# Better
-@error.log @src/api.js @models/user.js @.env 
-"500 errors on /user endpoint after deployment"
-```
+When the Gemini quota is spent — or when you want a second opinion from a different family — `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and `gpt-oss-120b-medium` are selectable too, and they draw on a **separate quota bucket**. Run `gemini-models` for the live list and `gemini-doctor` for what is left in each bucket; the doctor call is free.
 
-### Provide Stack Traces
-Always include full error messages and stack traces when debugging.
+## When to reach for plan mode
 
-## Code Generation
+`mode: "plan"` makes a run read-only. Nothing on disk changes, whatever Gemini decides it wants to do.
 
-### Specify Requirements Clearly
-```bash
-# Vague
-"create a user service"
+Use it any time you are asking a question rather than commissioning work: audits, reviews, "how would you do this", anything you are running against a repo you did not write. It costs nothing to add, and headless runs are not sandboxed — your own agy permission settings and plan mode are what hold.
 
-# Clear
-"create a user service with:
-- CRUD operations
-- input validation
-- error handling
-- TypeScript types
-- Jest tests"
-```
+`gemini-plan` is plan mode with a planner prompt around it. Reach for it when you want phases, dependencies and risks rather than prose.
 
-### Include Examples
-```bash
-@existing-service.js "create a similar service for products"
-```
+## Ask for something you can check
 
-## Security Reviews
+The difference between a useful answer and a vague one is usually in the question.
 
-### Comprehensive Security Checks
-```bash
-/gemini-cli:analyze @src/**/*.js @package.json @.env.example
-- Check for hardcoded secrets
-- Review authentication logic
-- Identify OWASP vulnerabilities
-- Check dependency vulnerabilities
-- Review input validation
-```
+- **Name the target.** "Check for SQL injection" beats "analyze this code".
+- **Name the finish line.** "Refactor this to be more testable, following SOLID principles" beats "make it better". "Handle 1000 requests a second" beats "make it faster".
+- **Bring the evidence.** For a bug, the full error and stack trace plus the file it names. For a performance problem, the profile.
+- **Bring an example.** `@existing-service.js "create a similar service for products"` gets you house style for free.
 
-## Performance Optimization
+## Threads
 
-### Measure Before Optimizing
-```bash
-@performance-profile.json @src/slow-endpoint.js 
-"optimize based on this profiling data"
-```
+An `ask-gemini` reply ends with the conversation id it created or continued. Pass it back and the next question keeps the earlier answers.
 
-### Consider Trade-offs
-```bash
-"optimize for speed, but maintain readability"
-"reduce memory usage without sacrificing features"
-```
+The id is left off in `changeMode` and when a `jsonSchema` is set, because both bodies have to stay parseable, and `gemini-plan` and `brainstorm` never report one at all.
 
-## Documentation
-
-### Context-Aware Documentation
-```bash
-@src/api/*.js @README.md 
-"update README with accurate API documentation"
-```
-
-### Maintain Consistency
-```bash
-@docs/style-guide.md @src/new-feature.js 
-"document following our conventions"
-```
-
-## Common Pitfalls to Avoid
-
-### 1. Over-broad Queries
-❌ `@**/* "fix all issues"`
-✅ `@src/auth/*.js "fix security issues in authentication"`
-
-### 2. Missing Context
-❌ `"why doesn't this work?"`
-✅ `@error.log @config.js "why doesn't database connection work?"`
-
-### 3. Ignoring Model Limits
-❌ Trying to analyze 5M tokens with Flash model
-✅ Using Pro for large codebases, Flash for single files
-
-### 4. Vague Success Criteria
-❌ "make it better"
-✅ "improve performance to handle 1000 requests/second"
-
-## Workflow Integration
-
-### Pre-commit Reviews
-```bash
-alias gemini-review='/gemini-cli:analyze @$(git diff --staged --name-only) review staged changes'
-```
-
-### Daily Development
-1. Morning: Architecture review
-2. Before PR: Code review
-3. When stuck: Debugging help
-4. End of day: Documentation updates
-
-## Advanced Tips
-
-### 1. Create Analysis Templates
-Save common queries for reuse:
-```bash
-# security-check.txt
-Check for:
-- SQL injection
-- XSS vulnerabilities
-- Authentication bypasses
-- Rate limiting
-- Input validation
-```
-
-### 2. Chain Operations
-```bash
-"First analyze the bug" → 
-"Now write a fix" → 
-"Create tests for the fix" →
-"Update documentation"
-```
-
-### 3. Learn from Patterns
-When Gemini suggests improvements, ask:
-```bash
-"explain why this approach is better"
-"show me more examples of this pattern"
-```
+Resuming replays the thread's history, so it is not free. Start a new thread when the subject changes.
