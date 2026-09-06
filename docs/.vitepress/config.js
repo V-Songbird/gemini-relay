@@ -30,6 +30,8 @@ export default withMermaid(
           items: [
             { text: 'Overview', link: '/' },
             { text: 'Quick Start', link: '/getting-started' },
+            { text: 'Installation', link: '/installation' },
+            { text: 'First Steps', link: '/first-steps' },
             { text: 'Agent Guide', link: '/AGENT_GUIDE' },
           ]
         },
@@ -58,8 +60,10 @@ export default withMermaid(
           collapsed: false,
           items: [
             { text: 'Antigravity CLI (agy)', link: '/migration/antigravity-cli' },
+            { text: 'MCP API Surface', link: '/api' },
             { text: 'Troubleshooting', link: '/resources/troubleshooting' },
             { text: 'FAQ', link: '/resources/faq' },
+            { text: 'Roadmap', link: '/resources/roadmap' },
           ]
         }
       ],

@@ -1,103 +1,57 @@
-# Natural Language Usage
+# Prompt Recipes
 
-You don't need to memorize commands - just ask naturally!
+Ask in a sentence. Your agent picks the tool and fills in the arguments.
 
-## How It Works
+You never have to write an MCP call by hand. Say "ask gemini" and what you want, and the request routes to one of the nine tools — nearly always `ask-gemini`.
 
-Claude Code understands when you want to use Gemini and automatically routes your request.
+## What to say
 
-## Examples
+| You want to… | Say something like |
+| --- | --- |
+| Review a diff before you commit | *"Have gemini review `@.review.patch` for correctness regressions."* |
+| Understand one file | *"Ask gemini what `@src/utils/geminiExecutor.ts` does."* |
+| Understand a codebase you just cloned | *"Ask gemini for an architecture overview of `@package.json` `@src` `@README.md`."* |
+| Find what is risky | *"Ask gemini to find the riskiest code in this repo."* |
+| Audit for security problems | *"Ask gemini to audit `@src` `@package.json` for hardcoded secrets and injection holes."* |
+| Debug a failure | *"Use gemini to read `@logs/error.log` and `@src/api/handler.js` and tell me why I'm getting 'undefined is not a function'."* |
+| Plan a feature before writing it | *"Use gemini-plan to design retry with backoff for the upload queue."* |
+| Find what the tests miss | *"Ask gemini what `@src/**/*.js` `@test/**/*.test.js` isn't covering."* |
+| Read something too big to open | *"Ask gemini what's in `@package-lock.json`."* |
+| Get edits back, ready to apply | *"Ask gemini to refactor `@src/services/*.js` to the Repository pattern, in changeMode."* |
+| Get an answer your code can parse | *"Ask gemini for the outdated deps as JSON."* |
+| Kick ideas around | *"Brainstorm ten ways to cut our cold-start time."* |
+| Make a picture | *"Use gemini-image for a 16:9 dark hero image, save it to `assets/hero.png`."* |
+| Find out why it broke | *"Run gemini-doctor."* |
 
-### File Analysis
-Instead of: `/gemini-cli:analyze @app.js explain`
+Any of these phrasings routes the request: *use gemini*, *ask gemini*, *gemini please*, *have gemini*, *get gemini to*, *with gemini*.
 
-Say:
-- "Use gemini to explain app.js"
-- "Ask gemini what this code does"
-- "Have gemini analyze the main application file"
+## Point at files inside the sentence
 
-### Code Generation
-Instead of: `/gemini-cli:sandbox create a web server`
-
-Say:
-- "Get gemini to create a simple web server"
-- "I need gemini to write a REST API example"
-- "Can gemini show me how to build an Express server?"
-
-### Debugging
-Instead of: `/gemini-cli:analyze @error.log @app.js debug`
-
-Say:
-- "Help me debug this error using gemini"
-- "Gemini, why is my app crashing?"
-- "Use gemini to find the bug in my code"
-
-## Keywords That Trigger Gemini
-
-Claude recognizes these patterns:
-- "use gemini..."
-- "ask gemini..."
-- "gemini please..."
-- "have gemini..."
-- "get gemini to..."
-- "with gemini..."
-
-## Best Practices
-
-### 1. Be Conversational
-```
-❌ /gemini-cli:analyze @config.json validate
-
-✅ "Hey, can gemini check if my config.json is valid?"
-```
-
-### 2. Provide Context
-```
-❌ "analyze the bug"
-
-✅ "Gemini, I'm getting a null pointer error in my auth handler, can you help?"
-```
-
-### 3. Specify Files Naturally
-```
-❌ @src/utils.js @src/helpers.js relationship
-
-✅ "How do utils.js and helpers.js work together? Ask gemini."
-```
-
-## Common Patterns
-
-### Code Review
-- "Gemini, review my latest changes"
-- "Use gemini to check my pull request"
-- "Is this code production-ready? Ask gemini"
-
-### Learning
-- "Gemini, explain how React hooks work"
-- "Can gemini show me Python best practices?"
-- "I want to learn about async/await with gemini"
-
-### Refactoring
-- "Gemini, how can I make this code cleaner?"
-- "Use gemini to refactor this function"
-- "Help me optimize this algorithm with gemini"
-
-## Mixing Commands and Natural Language
-
-You can combine both approaches:
+An `@path` works in ordinary prose. Write it where it reads naturally.
 
 ```
-"I need to debug this" → /gemini-cli:analyze @app.js @error.log
+I need to debug this — ask gemini about @app.js and @error.log
 ```
 
-Claude understands the context and uses the appropriate tool.
+`@` takes a file, a folder, `@.` for the whole project, or a glob like `@src/**/*.ts`. A token that resolves to nothing is left alone, so `@param` and `@types/node` reach the model as written. On the default `agy` backend the relay expands these itself before the prompt is sent; the legacy `gemini` backend leaves it to the CLI. What gets skipped and how much fits is in [Context inlining](../concepts/file-analysis.md).
 
-## Tips
+You can also say nothing about files at all. Gemini has its own file, search and shell tools, and will go looking.
 
-1. **Just Ask**: Don't overthink the syntax
-2. **Be Specific**: Include what you want to analyze
-3. **Iterate**: Have a conversation with follow-up questions
-4. **No Memorization**: Use whatever feels natural
+## When a sentence is not enough
 
-Remember: The goal is to make AI assistance feel natural, not robotic!
+Reach for an explicit tool call only to pin something a plain request would not set — the model, the reasoning effort, read-only plan mode, or a JSON schema.
 
+<details>
+<summary><strong>For AI agents — the call that pins those</strong></summary>
+
+```json
+{ "name": "ask-gemini", "arguments": {
+  "prompt": "@app.js @error.log what is crashing here?",
+  "model": "gemini-3.1-pro-high", "effort": "high", "mode": "plan" } }
+```
+
+Every parameter, type and default is in the [Tool Reference](./commands.md).
+
+</details>
+
+Jobs with more than one step — a diff to generate first, several questions in one thread, edits to apply — are in [Workflow examples](./examples.md). What makes a question worth asking is in [Best practices](./best-practices.md).

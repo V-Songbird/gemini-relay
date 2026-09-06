@@ -3,45 +3,45 @@ layout: home
 
 hero:
   name: "Gemini Relay"
-  text: "Google Gemini 3.8 & Antigravity for AI Agents"
-  tagline: "Unleash Google's Gemini 3.8 Flash, Gemini 3.1 Pro, reasoning depth, and Imagen multimodal generation directly inside Claude Code, Cursor, and autonomous agent workflows."
+  text: "Hand the big reading to Gemini"
+  tagline: "Your agent's context window is the thing you run out of first. Gemini Relay sends the reading to Google Gemini through the Antigravity CLI, and hands your agent back the answer instead of the files."
   actions:
     - theme: brand
-      text: Quick Start →
+      text: Quick Start
       link: /getting-started
     - theme: alt
-      text: 🤖 Agent Reference Guide
+      text: Agent Reference Guide
       link: /AGENT_GUIDE
     - theme: alt
-      text: GitHub Repo ⭐
+      text: GitHub Repo
       link: https://github.com/V-Songbird/gemini-relay
 
 features:
   - icon: ⚡
-    title: Gemini 3.8 Flash by Default
-    details: Instantaneous response latency coupled with deep multi-step thinking tokens via gemini-3.8-flash-high.
+    title: Pick a model, or don't
+    details: Ask for Gemini 3.8 Flash, Gemini 3.1 Pro, or just say 'flash' or 'pro'. Give ask-gemini or brainstorm no model and agy answers on the model it is already set to.
   - icon: 🧠
-    title: Dynamic Reasoning Depth
-    details: Dial thinking token depth up or down on demand with effort controls ('low', 'medium', 'high') per query.
+    title: Choose how hard it thinks
+    details: Set effort to 'low', 'medium' or 'high' on any one question, and pay for deep thinking only where it earns its keep.
   - icon: 🏗️
-    title: Architectural Blueprints (gemini-plan)
-    details: Non-destructive phased implementation roadmaps and dependency risk assessments using Gemini's dedicated plan mode.
+    title: A plan before you write
+    details: gemini-plan reads the project and returns a phased implementation plan. It runs in plan mode, so it changes nothing.
   - icon: 🎨
-    title: Multimodal Visual Creation (gemini-image)
-    details: Generate application assets and illustrations from text descriptions with aspect ratio control and automatic project export.
+    title: Images from a description
+    details: gemini-image makes an asset at the aspect ratio and size you ask for, and writes it into your workspace when you give it a path.
   - icon: 📐
-    title: Guaranteed JSON Schemas
-    details: Enforce valid machine-readable JSON matching any user-provided schema for zero-friction agent parsing.
+    title: JSON your code can parse
+    details: Pass a jsonSchema and it goes to agy as --json-schema, so the reply comes back structured with nothing to repair.
   - icon: 📂
-    title: Zero-Overhead Context Inlining
-    details: Offload 1M-2M tokens of code and logs via @file syntax, keeping your primary agent's context clean and hyper-focused.
+    title: Files your agent never opens
+    details: Point at a file, a folder, or the whole project with @, and Gemini does the reading.
 ---
 
 <div style="margin-top: 56px; margin-bottom: 24px;">
 
-## 🎮 Interactive Agent Console
+## Try it before you install
 
-Experience how Claude Code interacts with `gemini-relay` in real-time across architectural planning, large context inlining, visual generation, and structured outputs.
+Four things a coding agent asks the relay to do, and what comes back.
 
 </div>
 
@@ -49,9 +49,9 @@ Experience how Claude Code interacts with `gemini-relay` in real-time across arc
 
 <div style="margin-top: 64px; margin-bottom: 24px;">
 
-## 🧠 Reasoning Effort Depth Engine
+## How hard it thinks
 
-Explore the thinking token budgets available across Gemini 3.8 Flash and Gemini 3.1 Pro.
+`low`, `medium` and `high` side by side, and when each one is worth it.
 
 </div>
 
@@ -59,23 +59,12 @@ Explore the thinking token budgets available across Gemini 3.8 Flash and Gemini 
 
 <div style="margin-top: 64px; margin-bottom: 24px;">
 
-## 🌟 Supported Gemini 3.8 & 3.1 Model Matrix
+## The models you can name
 
 </div>
 
 <ModelMatrix />
 
-<div style="margin-top: 64px; margin-bottom: 24px;">
+Gemini 3.7 and 3.6 Flash are still nameable too, in high, medium and low. The same `agy` backend also serves `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and `gpt-oss-120b-medium`; pass any of them as `model`. They draw on a quota bucket separate from the Gemini models. [Models](/concepts/models) lists every id.
 
-## ⚡ One-Line Setup for Claude Code
-
-</div>
-
-Add the MCP server to your local Claude Code instance in seconds:
-
-```bash
-claude mcp add gemini-relay -- npx -y gemini-relay
-```
-
-Verify your setup at any time by asking Claude:
-> *"Run gemini-doctor to check the status of the MCP server and active backend"*
+Ready? [Quick Start](/getting-started) has the whole install in three steps.

@@ -13,7 +13,7 @@ The suite is split into four categories by **how much of the real world they tou
 npm test              # unit + integration (the hermetic, CI-gating suite)
 npm run test:unit
 npm run test:integration
-npm run test:e2e      # builds, then drives the REAL gemini CLI through the MCP server
+npm run test:e2e      # builds, then drives the REAL backend CLI through the MCP server
 npm run doctor:judge  # preflight checks + runs LLM-as-a-Judge semantic evaluations
 node scripts/run-tests.mjs all   # everything (unit + integration + e2e + judge)
 ```
@@ -42,15 +42,20 @@ user actually hits:
 ### `e2e/` — the real product, end to end
 Spawns the **built MCP server** (`dist/index.js`) over stdio and connects with the MCP
 SDK client — exactly how Claude / mcpjam do. Tool calls exercise the whole path:
-protocol → registry → tool → spawned **gemini** CLI. This is the automated replacement
+protocol → registry → tool → the spawned backend CLI. This is the automated replacement
 for manual mcpjam testing.
 
-- Gemini-dependent tests **auto-skip** when the `gemini` CLI is not on `PATH`, so the
-  suite degrades gracefully. The non-gemini tools (`ping`, `timeout-test`, `fetch-chunk`,
-  `tools/list`, `prompts/list`) always run.
+- Live-model tests **auto-skip** when the CLI of the *active backend* is not on `PATH`, so
+  the suite degrades gracefully. Since the retirement date that backend is `agy` unless
+  `GEMINI_MCP_BACKEND=gemini` is set, and the harness gates on whichever one the server will
+  actually select. The tools that need no model (`ping`, `fetch-chunk`, `tools/list`,
+  `prompts/list`) always run. `timeout-test` is not one of them: `src/tools/index.ts`
+  registers it only when `GEMINI_MCP_TEST_TOOLS` is set, which only the `judge/` suite
+  does, so calling it from an e2e test answers `Unknown tool: timeout-test`.
 - `npm run test:e2e` builds first, so it tests exactly what ships.
-- Live model calls are slow and use your gemini quota; the model is pinned to
-  `gemini-2.5-flash` and each test has a generous timeout.
+- Live model calls are slow and use your quota; the model is pinned to
+  `config.judgeGeminiModel` (see `JUDGE_GEMINI_MODEL` below) and each test has a
+  generous timeout.
 - Every E2E MCP response is printed as a `node:test` diagnostic by default, so
   passing results still show the exact raw response that each assertion checked.
 - Shared setup (spawning/closing the server, `gemini` detection, reading tool text) lives
@@ -60,7 +65,7 @@ for manual mcpjam testing.
 Runs E2E tool calls against a live Gemini CLI and then uses a second **LLM Judge** (e.g. DeepSeek or OpenRouter Gemini) to semantically evaluate the output against custom rubrics defined in the test file.
 
 - Requires either `DEEPSEEK_API_KEY` or `OPENROUTER_API_KEY` set in your `test/.env` file to query the LLM Judge.
-- The Gemini model used for E2E tests and Judge tests can be dynamically configured via the `JUDGE_GEMINI_MODEL` environment variable (defaults to `gemini-2.5-flash`), parsed by the shared configuration utility in [`envParser.ts`](./envParser.ts).
+- The Gemini model used for E2E tests and Judge tests can be dynamically configured via the `JUDGE_GEMINI_MODEL` environment variable, parsed by the shared configuration utility in [`envParser.ts`](./envParser.ts). Set it to any id `gemini-models` lists — `gemini-3.8-flash-high` is the model `gemini-plan` pins and the cheapest realistic choice; `gemini-3.1-pro-high` for the deep-reasoning path. `envParser.ts` still falls back to the retired `gemini-2.5-flash` when the variable is unset; on the `agy` backend that is only an alias, normalized to `gemini-3.8-flash-high` by `normalizeAgyModel`, so the runs still work — but set the variable explicitly rather than relying on a retired id, and expect the legacy `gemini` backend to reject it outright.
 
 ## Adding a test
 

@@ -1,84 +1,61 @@
-# Getting Started with Gemini Relay
+# Quick Start
 
-Connect your AI assistants (**Claude Code**, Claude Desktop, Cursor, Windsurf, and custom orchestrators) directly to **Google Gemini 3.8 Flash** and **Gemini 3.1 Pro** via Google's modern **Antigravity CLI** (`agy`).
+Two things to install: Google's Antigravity CLI (`agy`), and this server, which drives it. Then one check that tells you both worked.
 
----
+Node 18.19 or newer.
 
-## 📋 Prerequisites
+## 1. Install the CLI and sign in
 
-Before setting up `gemini-relay`, ensure you have:
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy
+```
 
-1. **[Node.js](https://nodejs.org/)** (v18.0.0 or higher recommended).
-2. **Google Antigravity CLI (`agy`)** installed and authenticated:
-   - **macOS / Linux**:
-     ```bash
-     curl -fsSL https://antigravity.google/cli/install.sh | bash
-     ```
-   - **Windows**: Download and install via the official installer or run `agy` in your terminal to complete one-time interactive login.
-3. *(Optional)* **Gemini CLI** (`gemini.cmd` / `gemini`) if you are on an enterprise/commercial license.
+On Windows, use the official installer from <https://goo.gle/gemini-cli-migration> instead of the `curl` line.
 
----
+Running `agy` on its own walks you through signing in. That happens once, and it is interactive. The relay never signs in for you.
 
-## ⚡ Client Setup
+## 2. Add the server
 
-### 1. Claude Code (Recommended)
-
-Claude Code provides the smoothest integration. Add the MCP server with one command:
+Claude Code, one command:
 
 ```bash
 claude mcp add gemini-relay -- npx -y gemini-relay
 ```
 
-*(On Windows PowerShell, use `claude mcp add gemini-relay -- npx -- y gemini-relay` if prompted).*
+Claude Desktop, Cursor, Windsurf and a global npm install are in [Installation](/installation).
 
-#### Verify Active Tools
-Inside Claude Code, run:
-```bash
-/mcp
+Then run `/mcp` inside Claude Code. Nine tools should be listed: `ask-gemini`, `gemini-plan`, `gemini-image`, `gemini-models`, `gemini-doctor`, `brainstorm`, `fetch-chunk`, `ping` and `Help`.
+
+## 3. Check it worked
+
+Ask your agent:
+
+> *"Run gemini-doctor"*
+
+It reports whether the CLI was found, whether you are signed in, and how much quota is left. It costs nothing to run. A healthy report ends with:
+
 ```
-You should see all 9 active tools registered: `ask-gemini`, `gemini-plan`, `gemini-image`, `gemini-models`, `gemini-doctor`, `brainstorm`, `fetch-chunk`, `ping`, and `Help`.
-
----
-
-### 2. Claude Desktop
-
-Add `gemini-relay` to your Claude Desktop configuration file:
-
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "gemini-relay": {
-      "command": "npx",
-      "args": ["-y", "gemini-relay"]
-    }
-  }
-}
+🎉 **System Ready!** The modern Antigravity CLI backend is active, signed in, and operational.
 ```
 
-Restart Claude Desktop after saving the configuration.
+From a clone of this repository, `npm run doctor` runs the same check from the terminal.
 
----
+If it says `agy` was not found even though your own shell finds it, the server did not inherit your `PATH` — see [when the server cannot find `agy`](/installation#when-the-server-cannot-find-agy). If the login check fails, run `agy` once interactively to sign in.
 
-### 3. Cursor & Windsurf
+<details>
+<summary><strong>For AI agents — the exact checks and floors</strong></summary>
 
-In your editor's MCP / Agent Settings:
-- **Server Name**: `gemini-relay`
-- **Server Type**: `command`
-- **Command**: `npx -y gemini-relay`
+| | |
+| --- | --- |
+| Node floor | `18.19.0`, declared in `package.json` engines. CI runs 18.x, 20.x and 22.x. |
+| Tool count | Nine. A tenth, `timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set — see [environment variables](/installation#environment-variables). |
+| `gemini-doctor` reports | The active backend and where that choice came from; the resolved `agy` and `gemini` executables and their versions; and — when `agy` is the active backend and was found — login and quota. |
+| How it reads quota | By running `agy -p "/usage" --output-format json`. Agy's own command layer answers that without an agent turn, so it costs no tokens. |
+| `npm run doctor` | The same diagnostic, run from a clone of the repository rather than through MCP. |
 
----
+</details>
 
-## 🧪 Verifying Environment Health
+## Next
 
-To verify that your CLI binaries, Node environment, and active backend are in working order, run the diagnostic doctor:
-
-```bash
-npm run doctor
-```
-
-Or ask your AI assistant directly:
-> *"Run gemini-doctor to check the MCP server and CLI health"*
+Run your first calls in [First Steps](/first-steps).

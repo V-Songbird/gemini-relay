@@ -18,12 +18,8 @@
           <strong :style="{ color: m.effortColor }">{{ m.effort }}</strong>
         </div>
         <div class="spec-row">
-          <span>Context Window:</span>
-          <strong>{{ m.context }}</strong>
-        </div>
-        <div class="spec-row">
-          <span>Execution Speed:</span>
-          <strong>{{ m.speed }}</strong>
+          <span>Alias:</span>
+          <strong class="font-mono">{{ m.alias }}</strong>
         </div>
       </div>
 
@@ -40,43 +36,62 @@ const models = [
     id: 'flash-high',
     name: 'gemini-3.8-flash-high',
     featured: true,
-    badge: 'DEFAULT CHOICE',
+    badge: 'MOST USED',
     badgeBg: 'linear-gradient(135deg, #0284c7, #7c3aed)',
-    type: 'Flagship Fast & Deep',
-    desc: 'The default engine for Gemini Relay. Delivers state-of-the-art multimodal speed paired with multi-step reasoning depth.',
-    effort: 'High (Deep Thinking)',
+    type: 'Flash family, high reasoning',
+    desc: 'What gemini-plan picks when you name no model, and the only model gemini-image uses. ask-gemini and brainstorm send no model at all unless you name one.',
+    effort: 'High',
     effortColor: '#0284c7',
-    context: '1M+ Tokens',
-    speed: 'Ultra-Fast (~2.5s)',
-    tags: ['Default', 'Code Review', 'Planning', 'Image Gen']
+    alias: 'flash',
+    tags: ['Code Review', 'Planning', 'Image Gen']
   },
   {
-    id: 'pro-high',
-    name: 'gemini-3.1-pro-high',
+    id: 'flash-medium',
+    name: 'gemini-3.8-flash-medium',
     featured: false,
-    badge: 'MAX REASONING',
-    badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)',
-    type: 'Deep Architectural Thinker',
-    desc: 'Top-tier complex problem solving, formal mathematical algorithms, concurrency analysis, and mission-critical architecture.',
-    effort: 'Maximum Flagship',
-    effortColor: '#9333ea',
-    context: '2M+ Tokens',
-    speed: 'Deliberate (~5-8s)',
-    tags: ['Security Audits', 'Distributed Systems', 'Proofs']
+    type: 'Flash family, medium reasoning',
+    desc: 'Everyday tasks with balanced reasoning depth — bug investigation, refactors across a handful of files, unit tests.',
+    effort: 'Medium',
+    effortColor: '#6366f1',
+    alias: '—',
+    tags: ['Refactors', 'Bug Hunts', 'Unit Tests']
   },
   {
     id: 'flash-low',
     name: 'gemini-3.8-flash-low',
     featured: false,
-    badge: 'INSTANT THROUGHPUT',
+    badge: 'MINIMAL THINKING',
     badgeBg: 'linear-gradient(135deg, #10b981, #06b6d4)',
-    type: 'Zero-Latency Engine',
-    desc: 'Optimized for instant parsing, commit summaries, AST linting, and high-frequency queries without thinking delay.',
-    effort: 'Low / Instant',
+    type: 'Flash family, low reasoning',
+    desc: 'The same Flash model with the least thinking depth baked into the id — for summaries, syntax checks, formatting and commit messages.',
+    effort: 'Low',
     effortColor: '#10b981',
-    context: '1M+ Tokens',
-    speed: 'Near-Instant (<1s)',
-    tags: ['High QPS', 'Summaries', 'Formatting']
+    alias: '—',
+    tags: ['Summaries', 'Syntax Checks', 'Formatting']
+  },
+  {
+    id: 'pro-high',
+    name: 'gemini-3.1-pro-high',
+    featured: false,
+    badge: 'FLAGSHIP REASONING',
+    badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)',
+    type: 'Pro family, high reasoning',
+    desc: 'Complex problem solving, formal mathematical algorithms, concurrency analysis, and mission-critical architecture.',
+    effort: 'High',
+    effortColor: '#9333ea',
+    alias: 'pro',
+    tags: ['Security Audits', 'Distributed Systems', 'Proofs']
+  },
+  {
+    id: 'pro-low',
+    name: 'gemini-3.1-pro-low',
+    featured: false,
+    type: 'Pro family, low reasoning',
+    desc: 'Pro-grade knowledge retrieval with minimal thinking, for questions that need the Pro model but not its deep reasoning.',
+    effort: 'Low',
+    effortColor: '#10b981',
+    alias: '—',
+    tags: ['Knowledge Retrieval', 'Quick Answers']
   }
 ]
 </script>
