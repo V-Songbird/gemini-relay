@@ -1,5 +1,14 @@
 import * as path from 'path';
-import { readFileSync, realpathSync } from 'fs';
+import {
+  closeSync,
+  fstatSync,
+  openSync,
+  readSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+  type Stats
+} from 'fs';
 import { executeCommand } from './commandExecutor.js';
 import { Logger } from './logger.js';
 import {
@@ -18,6 +27,34 @@ const FILE_REF_PATTERN = /@(\S+)/g;
 // Inlining only: @ must start the prompt or follow whitespace, so user@host or
 // a@b aren't inlined. The guard above stays broad (it must reject any traversal).
 const FILE_REF_INLINE_PATTERN = /(?<=^|\s)@(\S+)/g;
+
+// Only `*`, `**` and `?` make a token a glob. Bracket classes are deliberately
+// unsupported so prose like "@list[0]" never enters the expansion path.
+const GLOB_META = /[*?]/;
+// Bounds on a glob token before it is compiled: see globToRegExp.
+const MAX_GLOB_LENGTH = 200;
+const MAX_GLOB_STARS = 6;
+// Inline caps. The prompt now reaches agy on stdin, so these are about model
+// context and cost, not the old Windows argv ceiling: 256 KB of any one file
+// and 2 MB across the whole prompt (~500K tokens of text).
+const MAX_INLINE_FILE_BYTES = 256 * 1024;
+const MAX_INLINE_TOTAL_BYTES = 2 * 1024 * 1024;
+const BINARY_SNIFF_BYTES = 8 * 1024;
+// Never worth sending: dependency trees, VCS internals and build output dwarf
+// the source they are derived from.
+const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist']);
+const SKIP_REL_DIRS = new Set([
+  path.join('docs', '.vitepress', 'cache'),
+  path.join('docs', '.vitepress', 'dist')
+]);
+// A directory or glob expansion reads files the prompt never named, and `@.` is
+// the documented headline usage, so a single untrusted token must not sweep up
+// credentials the user would never have pasted — that would reopen the
+// CVE-2026-0755 exfiltration primitive from inside the root. Matched on the
+// resolved basename, so a benign-looking symlink to `.env` is skipped too.
+// An explicitly named `@.env` is still inlined: that is the user's own choice.
+const SECRET_FILE_PATTERN =
+  /^(?:\.env(?:\..+)?|\.npmrc|\.netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|.+\.(?:pem|key|pfx|p12))$/i;
 
 /**
  * Rejects @file references that resolve outside the working directory.
@@ -147,12 +184,169 @@ export function prepareChangeModePrompt(prompt: string): string {
   return buildChangeModePrompt(prompt.replace(/file:(\S+)/g, '@$1'));
 }
 
+/** Files an expansion dropped: the first few names, plus how many there were. */
+interface Dropped {
+  names: string[];
+  count: number;
+}
+const DROPPED_NAMES_SHOWN = 10;
+
+/** Running total for one inlineFileReferences call, shared by every token in it. */
+interface InlineBudget {
+  spent: number;
+  /** Files the budget pushed out, reported at the end of the prompt. */
+  omitted: Dropped;
+  /** Files that exist but could not be read, likewise reported. */
+  unreadable: Dropped;
+}
+
 /**
- * Replaces every in-project `@path` reference with the file's contents inlined
- * in a delimited block. The Gemini CLI does this inlining itself; the agy
- * backend does NOT reliably inline `@file` (it is agent-first and decides to
- * read files via its own tools), so for agy we inline ourselves to keep both
- * determinism and the CVE-2026-0755 project-root guard in the data path.
+ * Records a dropped file. Only the names the footer actually prints are kept —
+ * `@.` past the budget on a big repo drops thousands, and holding every name to
+ * print ten of them is waste. Returns null so callers can `return drop(...)`.
+ */
+function drop(into: Dropped, label: string): null {
+  into.count++;
+  if (into.names.length < DROPPED_NAMES_SHOWN) { into.names.push(label); }
+  return null;
+}
+
+/** Footer naming what was dropped and why, or '' when nothing was. */
+function droppedFooter(dropped: Dropped, reason: string): string {
+  if (dropped.count === 0) { return ''; }
+  const rest = dropped.count > dropped.names.length
+    ? `, and ${dropped.count - dropped.names.length} more`
+    : '';
+  return `\n----- ${reason}; ${dropped.count} file(s) not included: ${dropped.names.join(', ')}${rest} -----\n`;
+}
+
+/**
+ * Compiles a glob into a RegExp over root-relative POSIX paths, or null when the
+ * token is not worth compiling. Node has no built-in glob in the version range
+ * this package supports and a runtime dependency is not worth `*` and `?`, so
+ * this is the whole matcher.
+ *
+ * The bounds are a denial-of-service guard, not tidiness: the token comes from
+ * untrusted prompt text and `**` compiles to `.*`, so `a**a**...ab` backtracks
+ * catastrophically — measured on Node 22, 679 ms at ten `**` and roughly double
+ * per further one, for EACH candidate path — which would freeze this
+ * single-threaded server. A real glob is short with a handful of stars; anything
+ * past that is prose and stays verbatim, the same as any other non-matching token.
+ */
+function globToRegExp(glob: string): RegExp | null {
+  if (glob.length > MAX_GLOB_LENGTH || (glob.match(/\*/g)?.length ?? 0) > MAX_GLOB_STARS) {
+    Logger.warn(`inlineFileReferences: ignoring oversized glob token "@${glob}"`);
+    return null;
+  }
+  const source = glob.replace(
+    /((?:^|\/)\*\*\/)|(\*\*)|(\*)|(\?)|([^/\w-])/g,
+    (_m, slashStar: string, doubleStar: string, star: string, question: string, literal: string) => {
+      // `a/**/b` matches `a/b` too, and a leading `**/` matches a root-level
+      // file: that is what every glob implementation and every reader expects.
+      // Miss the leading case and `@**/*.md` silently drops every root-level
+      // README, handing the model a partial corpus that reads as complete.
+      if (slashStar) { return slashStar[0] === '/' ? '/(?:.*/)?' : '(?:.*/)?'; }
+      if (doubleStar) { return '.*'; }
+      if (star) { return '[^/]*'; }
+      if (question) { return '[^/]'; }
+      return '\\' + literal;
+    }
+  );
+  return new RegExp(`^${source}$`);
+}
+
+/**
+ * Collects root-relative paths of the regular files under `dirReal`.
+ *
+ * Every entry is re-canonicalized and re-jailed: the CVE-2026-0755 guard is
+ * lexical on the *token*, and an expansion walks paths the token never named,
+ * so a symlink planted inside the root must be neither followed nor read.
+ */
+function walkFiles(dirReal: string, rootReal: string, seen: Set<string> = new Set([dirReal])): string[] {
+  let entries;
+  try {
+    entries = readdirSync(dirReal, { withFileTypes: true });
+  } catch (e) {
+    Logger.warn(`inlineFileReferences: could not list ${dirReal}: ${(e as Error).message}`);
+    return [];
+  }
+  const found: string[] = [];
+  for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    if (SKIP_DIR_NAMES.has(entry.name)) { continue; }
+    let real: string;
+    let stats: Stats;
+    try {
+      real = realpathSync(path.join(dirReal, entry.name));
+      stats = statSync(real);
+    } catch {
+      continue; // dangling symlink or a race with a delete: nothing to inline
+    }
+    if (real !== rootReal && !real.startsWith(rootReal + path.sep)) { continue; }
+    const rel = path.relative(rootReal, real);
+    if (stats.isDirectory()) {
+      if (SKIP_REL_DIRS.has(rel) || seen.has(real)) { continue; }
+      seen.add(real);
+      found.push(...walkFiles(real, rootReal, seen));
+    } else if (stats.isFile() && !SECRET_FILE_PATTERN.test(path.basename(rel))) {
+      found.push(rel);
+    }
+  }
+  return found;
+}
+
+/**
+ * Renders one file as a BEGIN/END block, or null when it cannot be inlined
+ * (unreadable, binary, or out of budget). Reads at most MAX_INLINE_FILE_BYTES,
+ * so a multi-gigabyte file never lands in memory.
+ */
+function inlineOneFile(label: string, real: string, budget: InlineBudget): string | null {
+  // Check the budget BEFORE touching the disk: `@.` on a large repo would
+  // otherwise keep opening, reading and sniffing every remaining file long after
+  // the budget was spent. The prompt was bounded; the work was not.
+  if (budget.spent >= MAX_INLINE_TOTAL_BYTES) { return drop(budget.omitted, label); }
+  let fd: number | undefined;
+  try {
+    fd = openSync(real, 'r');
+    const size = fstatSync(fd).size;
+    const want = Math.min(size, MAX_INLINE_FILE_BYTES);
+    const buf = Buffer.alloc(want);
+    const got = want > 0 ? readSync(fd, buf, 0, want, 0) : 0;
+    // A NUL byte near the start is the cheap conventional binary test (git uses
+    // the same one). Binaries are never useful as prompt text.
+    if (buf.subarray(0, Math.min(got, BINARY_SNIFF_BYTES)).includes(0)) {
+      Logger.warn(`inlineFileReferences: skipping binary file ${label}`);
+      return null;
+    }
+    if (budget.spent + got > MAX_INLINE_TOTAL_BYTES) { return drop(budget.omitted, label); }
+    budget.spent += got;
+    const truncated = size > got
+      ? `\n----- TRUNCATED: ${label} is ${size} bytes, only the first ${got} are shown -----`
+      : '';
+    return `\n----- BEGIN FILE: ${label} -----\n${buf.subarray(0, got).toString('utf8')}${truncated}\n----- END FILE: ${label} -----\n`;
+  } catch (e) {
+    // EVERY failure degrades to a skip, reads included: an entry the walk saw as
+    // a file and that is now a directory (EISDIR), an EACCES, or an unhydrated
+    // OneDrive placeholder must drop one file, not abort the whole tool call.
+    // It lands in the footer, so a dropped file is visible in the prompt too.
+    Logger.warn(`inlineFileReferences: could not read ${label}: ${(e as Error).message}`);
+    return drop(budget.unreadable, label);
+  } finally {
+    if (fd !== undefined) { closeSync(fd); }
+  }
+}
+
+/**
+ * Replaces every in-project `@path` reference with file contents inlined in
+ * delimited blocks. The Gemini CLI does this inlining itself; the agy backend
+ * does NOT reliably inline `@file` (it is agent-first and decides to read files
+ * via its own tools), so for agy we inline ourselves to keep both determinism
+ * and the CVE-2026-0755 project-root guard in the data path.
+ *
+ * A token is inlined only when it names something that exists: a file, a
+ * directory (`@.` is the whole project), or a glob with matches. Anything else
+ * is left exactly as written, because `@param`, `@Injectable()` and
+ * `@types/node` are prose, not file references, and every one of them used to
+ * be replaced by a "FILE NOT FOUND" marker.
  */
 export function inlineFileReferences(prompt: string, root: string = process.cwd()): string {
   // Reuse the same guard the gemini path relies on; rejects ~, absolute,
@@ -169,18 +363,39 @@ export function inlineFileReferences(prompt: string, root: string = process.cwd(
   }
   const escapesRoot = (p: string) =>
     p !== realRoot && !p.startsWith(realRoot + path.sep);
-  return prompt.replace(FILE_REF_INLINE_PATTERN, (whole, ref: string) => {
+  const budget: InlineBudget = {
+    spent: 0,
+    omitted: { names: [], count: 0 },
+    unreadable: { names: [], count: 0 }
+  };
+  let wholeTree: string[] | undefined; // walked at most once per prompt
+
+  const expand = (rels: string[]): string | null => {
+    const blocks = rels
+      .map(rel => inlineOneFile(rel.split(path.sep).join('/'), path.join(realRoot, rel), budget))
+      .filter((block): block is string => block !== null);
+    return blocks.length > 0 ? blocks.join('') : null;
+  };
+
+  const inlined = prompt.replace(FILE_REF_INLINE_PATTERN, (whole, ref: string) => {
+    if (GLOB_META.test(ref)) {
+      const pattern = globToRegExp(ref.split('\\').join('/'));
+      if (pattern === null) { return whole; }
+      wholeTree ??= walkFiles(realRoot, realRoot);
+      return expand(wholeTree.filter(rel => pattern.test(rel.split(path.sep).join('/')))) ?? whole;
+    }
     const resolved = path.resolve(normalizedRoot, ref);
     // Symlink-aware guard: assertSafeFileReferences is lexical (path.resolve),
     // so an in-root symlink could still point outside the root. Resolve the real
     // target and re-check before reading. realpathSync throws on a missing path —
-    // that is handled below as "not found" (no contents leaked).
+    // that token is simply not a file reference, so it stays verbatim.
     let real: string;
+    let stats: Stats;
     try {
       real = realpathSync(resolved);
-    } catch (e) {
-      Logger.warn(`inlineFileReferences: could not resolve @${ref}: ${(e as Error).message}`);
-      return `\n----- FILE NOT FOUND: ${ref} -----\n`;
+      stats = statSync(real);
+    } catch {
+      return whole;
     }
     if (escapesRoot(real)) {
       throw new Error(
@@ -188,16 +403,20 @@ export function inlineFileReferences(prompt: string, root: string = process.cwd(
         `Only files within ${normalizedRoot} may be referenced.`
       );
     }
-    try {
-      const content = readFileSync(real, 'utf8');
-      return `\n----- BEGIN FILE: ${ref} -----\n${content}\n----- END FILE: ${ref} -----\n`;
-    } catch (e) {
-      Logger.warn(`inlineFileReferences: could not read @${ref}: ${(e as Error).message}`);
-      // Leave a visible marker rather than the raw token so the model isn't
-      // misled into thinking a file was provided.
-      return `\n----- FILE NOT FOUND: ${ref} -----\n`;
+    if (stats.isDirectory()) {
+      return expand(
+        real === realRoot ? (wholeTree ??= walkFiles(realRoot, realRoot)) : walkFiles(real, realRoot)
+      ) ?? whole;
     }
+    if (!stats.isFile()) { return whole; }
+    return inlineOneFile(ref, real, budget) ?? whole;
   });
+
+  // Say what was dropped. Silent truncation reads to the model as full coverage,
+  // which is worse than a smaller answer.
+  return inlined +
+    droppedFooter(budget.omitted, `OMITTED: the ${MAX_INLINE_TOTAL_BYTES} byte inline budget was reached`) +
+    droppedFooter(budget.unreadable, 'UNREADABLE: files exist but could not be read');
 }
 
 export async function executeGeminiCLI(

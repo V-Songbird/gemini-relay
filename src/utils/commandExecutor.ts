@@ -112,7 +112,10 @@ export function buildEnoentErrorMessage(command: string): string {
     lines.push(
       `• Antigravity CLI (agy) is the Gemini CLI's successor and this tool's default backend since ${RETIREMENT.GEMINI_CLI_ISO}. To install it, ${installAgy}, then run \`agy\` once to sign in.`,
       isWindows
-        ? `• It installs under %LOCALAPPDATA%\\Antigravity\\; add that to PATH or set ${ENV.AGY_CLI_PATH} to agy.exe.`
+        // Verified on a current install: the binary lands at
+        // %LOCALAPPDATA%\agy\bin\agy.exe. Older builds used %LOCALAPPDATA%\Antigravity\,
+        // which resolveAgy still probes, so name both — real location first.
+        ? `• It installs to %LOCALAPPDATA%\\agy\\bin\\agy.exe (older builds: %LOCALAPPDATA%\\Antigravity\\); add that directory to PATH or set ${ENV.AGY_CLI_PATH} to the full path of agy.exe.`
         : `• It installs to ~/.local/bin; add that to PATH or set ${ENV.AGY_CLI_PATH} to the agy binary.`,
       `• On a supported Gemini tier (paid API key or Enterprise/Standard license)? Set ${ENV.BACKEND}=gemini to keep using the Gemini CLI instead.`,
       `• More: ${RETIREMENT.MIGRATION_URL} and docs/migration/antigravity-cli.md`,
@@ -125,6 +128,12 @@ export function buildEnoentErrorMessage(command: string): string {
     );
   }
   return lines.join("\n");
+}
+
+/** Rejection from a child that exited non-zero; keeps stdout so a CLI's own JSON verdict survives. */
+export interface CommandError extends Error {
+  stdout?: string;
+  exitCode?: number | null;
 }
 
 // Override with GEMINI_MCP_TIMEOUT (minutes).
@@ -273,10 +282,13 @@ export async function executeCommand(
       } else {
         Logger.commandComplete(startTime, code);
         Logger.error(`Failed with exit code ${code}`);
-        const errorMessage = stderr.trim() || "Unknown error";
-        reject(
-          new Error(`Command failed with exit code ${code}: ${errorMessage}`),
-        );
+        // agy prints its verdict (bad model, quota, auth) as JSON on stdout with
+        // an empty stderr; keep both so the caller never sees "Unknown error".
+        const errorMessage = stderr.trim() || stdout.trim() || "Unknown error";
+        const err: CommandError = new Error(`Command failed with exit code ${code}: ${errorMessage}`);
+        err.stdout = stdout;
+        err.exitCode = code;
+        reject(err);
       }
     });
   });

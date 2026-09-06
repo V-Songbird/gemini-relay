@@ -186,11 +186,15 @@ function runReport() {
 // ── test (automated MCP test, replaces manual mcpjam) ──────────────────────────
 function runTest() {
   heading("Preflight");
-  const gemini = detectGemini();
-  if (gemini.found) {
-    console.log(`  ${OK} gemini ${gemini.version ? c.cyan(gemini.version) : ""} ${c.dim("(" + gemini.primary + ")")}`);
+  // The e2e harness gates its live tests on the backend the server will actually
+  // select, so preflight has to report that same one — since the retirement date
+  // it is agy unless GEMINI_MCP_BACKEND says otherwise.
+  const backend = (process.env[ENV.BACKEND] || "").trim().toLowerCase() || "agy";
+  const cli = backend === "gemini" ? detectGemini() : detectAgy();
+  if (cli.found) {
+    console.log(`  ${OK} ${backend} ${cli.version ? c.cyan(cli.version) : ""} ${c.dim("(" + cli.primary + ")")}`);
   } else {
-    console.log(`  ${WARN} gemini not on PATH — live model tests will skip; only the gemini-independent server tests run.`);
+    console.log(`  ${WARN} ${backend} not on PATH — live model tests will skip; only the model-independent server tests run.`);
   }
 
   heading("Build");

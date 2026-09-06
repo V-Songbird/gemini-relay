@@ -42,7 +42,7 @@ export const geminiModelsTool: UnifiedTool = {
       : "";
 
     return `### Active Backend: **${backend.name.toUpperCase()}**
-- **Default Model:** \`${MODELS.DEFAULT}\`
+- **Default Model:** none. \`ask-gemini\` and \`brainstorm\` send no \`--model\` unless you name one, so agy answers on its own configured model. \`gemini-plan\` pins \`${MODELS.DEFAULT}\`; \`gemini-image\` hardcodes it.
 - **Model Selection:** ${backend.supportsModelSelection ? "✅ Supported" : "❌ Fixed"}
 - **Reasoning Effort Control:** ${backend.supportsReasoningEffort ? "✅ Supported ('low', 'medium', 'high')" : "❌ Not supported"}
 - **Structured Output (--json-schema):** ${backend.supportsStructuredOutput ? "✅ Supported" : "❌ Not supported"}

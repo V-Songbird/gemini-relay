@@ -48,6 +48,25 @@ export function parseAgyJsonResponse(
   // Flatten one level so a top-level array of entries is handled too.
   const flat = candidates.flatMap((c) => (Array.isArray(c) ? c : [c]));
 
+  // Usage is collected up front, before the early return: a transcript-shaped
+  // reply used to lose the token line that a plain reply got, because that branch
+  // returned before this loop ran.
+  let usageSummary: string | undefined;
+  if (options?.includeUsage) {
+    for (const c of flat) {
+      if (!c || typeof c !== "object") continue;
+      const o = c as Record<string, unknown>;
+      if (!o.usage || typeof o.usage !== "object") continue;
+      const u = o.usage as Record<string, number>;
+      const inTok = u.input_tokens ?? 0;
+      const outTok = u.output_tokens ?? 0;
+      const thinkTok = u.thinking_tokens ? ` (${u.thinking_tokens} thinking)` : "";
+      const dur = typeof o.duration_seconds === "number" ? ` | ${o.duration_seconds.toFixed(1)}s` : "";
+      usageSummary = `\n\n📊 [Tokens: ${inTok.toLocaleString()} in, ${outTok.toLocaleString()} out${thinkTok}${dur}]`;
+    }
+  }
+  const withUsage = (reply: string) => (usageSummary ? reply + usageSummary : reply);
+
   // 1) Check for structured output first if requested or present
   for (const c of flat) {
     if (!c || typeof c !== "object") continue;
@@ -56,6 +75,8 @@ export function parseAgyJsonResponse(
       const jsonStr = typeof o.structured_output === "string"
         ? o.structured_output
         : JSON.stringify(o.structured_output, null, 2);
+      // Never withUsage() here: a --json-schema body is what the caller runs
+      // JSON.parse on, and a trailing "📊 [Tokens: …]" line makes it unparseable.
       if (options?.preferStructured) return jsonStr;
     }
   }
@@ -65,48 +86,109 @@ export function parseAgyJsonResponse(
     (c): c is TranscriptEntry => !!c && typeof c === "object",
   );
   const fromEntries = extractReplies(entries);
-  if (fromEntries) return fromEntries;
+  if (fromEntries) return withUsage(fromEntries);
 
   // 3) A result object carrying the reply under a conventional field name.
   const texts: string[] = [];
-  let usageSummary: string | undefined;
 
   for (const c of flat) {
     if (!c || typeof c !== "object") continue;
     const o = c as Record<string, unknown>;
-    
-    // Capture usage if available and requested
-    if (options?.includeUsage && o.usage && typeof o.usage === "object") {
-      const u = o.usage as Record<string, number>;
-      const inTok = u.input_tokens ?? 0;
-      const outTok = u.output_tokens ?? 0;
-      const thinkTok = u.thinking_tokens ? ` (${u.thinking_tokens} thinking)` : "";
-      const dur = typeof o.duration_seconds === "number" ? ` | ${o.duration_seconds.toFixed(1)}s` : "";
-      usageSummary = `\n\n📊 [Tokens: ${inTok.toLocaleString()} in, ${outTok.toLocaleString()} out${thinkTok}${dur}]`;
-    }
 
-    // Check structured_output as fallback text if response is missing
-    if (o.structured_output !== undefined && o.structured_output !== null && !texts.length) {
-      const jsonStr = typeof o.structured_output === "string"
-        ? o.structured_output
-        : JSON.stringify(o.structured_output, null, 2);
-      texts.push(jsonStr);
-      break;
-    }
-
+    let found = false;
     for (const k of ["response", "text", "content", "message", "output", "result"]) {
       const v = o[k];
       if (typeof v === "string" && v.trim()) {
         texts.push(v.trim());
+        found = true;
         break;
       }
     }
+
+    // structured_output only stands in for a missing reply: a resumed
+    // conversation carries the schema result of an earlier turn alongside the
+    // new reply, and that stale object must not win over the answer.
+    if (!found && !texts.length && o.structured_output !== undefined && o.structured_output !== null) {
+      texts.push(
+        typeof o.structured_output === "string"
+          ? o.structured_output
+          : JSON.stringify(o.structured_output, null, 2),
+      );
+    }
   }
-  let joined = texts.join("\n\n").trim();
-  if (joined && usageSummary) {
-    joined += usageSummary;
+  const joined = texts.join("\n\n").trim();
+  return joined ? withUsage(joined) : undefined;
+}
+
+/**
+ * The one NDJSON line `agy --input-format stream-json` accepts on stdin. Sending
+ * the prompt this way sidesteps the OS argv cap (32,767 chars on Windows,
+ * 128 KB per argument on Linux) that a `-p <prompt>` with inlined @files hits.
+ */
+export function streamJsonUserMessage(prompt: string): string {
+  return JSON.stringify({ event: "user", message: { role: "user", content: prompt } }) + "\n";
+}
+
+/**
+ * agy's result object: the whole stdout under `--output-format json`, or the
+ * final `{"event":"result","result":{...}}` line under `stream-json`.
+ */
+export function agyResult(stdout: string, stream: boolean): Record<string, unknown> | undefined {
+  const asObject = (raw: string): Record<string, unknown> | undefined => {
+    try {
+      const o = JSON.parse(raw);
+      return o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  if (!stream) return asObject(stdout.trim());
+  const lines = stdout.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const o = asObject(lines[i].trim());
+    if (o?.event === "result" && o.result && typeof o.result === "object") {
+      return o.result as Record<string, unknown>;
+    }
   }
-  return joined || undefined;
+  return undefined;
+}
+
+/** agy's own verdict on a failed run (`"error"` in the result), verbatim. */
+export function agyErrorText(result?: Record<string, unknown>): string | undefined {
+  const e = result?.error;
+  return typeof e === "string" && e.trim() ? e.trim() : undefined;
+}
+
+/** The conversation the run belongs to, so the caller can continue the thread. */
+export function agyConversationId(result?: Record<string, unknown>): string | undefined {
+  const id = result?.conversation_id;
+  return typeof id === "string" && id.trim() ? id.trim() : undefined;
+}
+
+/**
+ * What a *successful* result still needs to say out loud: a `status` other than
+ * SUCCESS, and the `denied_actions` a headless run collected. Observed live as
+ * `denied_actions":[{"display_name":"AskQuestion"}]` — a tool call the runtime
+ * refused with nobody around to approve it. A refused write in accept-edits mode
+ * arrives the same way, so without this the edit just silently never happened.
+ */
+export function agyResultNotices(result?: Record<string, unknown>): string[] {
+  const notices: string[] = [];
+  const status = typeof result?.status === "string" ? result.status.trim() : "";
+  if (status && status.toUpperCase() !== "SUCCESS") {
+    notices.push(`agy reported status "${status}" for this run.`);
+  }
+  const denied = result?.denied_actions;
+  if (Array.isArray(denied) && denied.length) {
+    const names = denied.map((d) => {
+      const name = d && typeof d === "object" ? (d as Record<string, unknown>).display_name : undefined;
+      return typeof name === "string" && name.trim() ? name.trim() : "unnamed action";
+    });
+    notices.push(
+      `agy refused ${names.length} tool action(s) in this headless run (nobody could approve them): ${names.join(", ")}.`,
+    );
+  }
+  return notices;
 }
 
 /** POSIX single-quote a token so it is inert inside an `sh -c` command string. */

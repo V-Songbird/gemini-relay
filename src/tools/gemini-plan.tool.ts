@@ -6,7 +6,7 @@ import { type ReasoningEffort } from '../constants.js';
 const geminiPlanArgsSchema = z.object({
   task: z.string().min(1).describe("The architectural task, complex feature, or refactoring goal to plan out."),
   context: z.string().optional().describe("Additional context, constraints, or reference files (supports @file syntax)."),
-  model: z.string().optional().describe("Gemini model to use (default: 'gemini-3.8-flash-high' or 'gemini-3.1-pro-high')."),
+  model: z.string().optional().describe("Model to plan with. Unlike ask-gemini, this tool pins 'gemini-3.8-flash-high' when you name none. 'gemini-3.1-pro-high' is the usual step up."),
   effort: z.enum(['low', 'medium', 'high']).default('high').describe("Reasoning effort level (default: 'high'). Allocates deep thinking tokens for comprehensive plan design."),
   addDirs: z.array(z.string()).optional().describe("Additional directories to add to workspace context."),
   includeUsage: z.boolean().default(true).describe("Include token metrics in the response."),

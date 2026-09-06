@@ -18,6 +18,8 @@ import { Logger } from "../utils/logger.js";
 export interface AgyCapabilities {
   /** `--output-format` exists and advertises a json mode → we can skip scraping. */
   outputFormatJson: boolean;
+  /** `--input-format stream-json` exists → the prompt can travel on stdin (no argv length cap). */
+  streamJsonInput: boolean;
   /** `--model` exists → model selection is supported in print mode. */
   modelFlag: boolean;
   /** `--effort` exists → reasoning effort (low|medium|high) is supported. */
@@ -38,12 +40,17 @@ export interface AgyCapabilities {
   sandboxFlag: boolean;
   /** `--dangerously-skip-permissions` exists. */
   dangerouslySkipPermissions: boolean;
+  /** `--disable-slash-commands` exists → a "/…" prompt can be kept out of command/skill expansion. */
+  disableSlashCommands: boolean;
+  /** `--agent <name>` exists → a custom agent from an agent.md can be selected. */
+  agentFlag: boolean;
   /** Raw help text, kept for diagnostics. */
   raw: string;
 }
 
 export const NO_AGY_CAPABILITIES: AgyCapabilities = {
   outputFormatJson: false,
+  streamJsonInput: false,
   modelFlag: false,
   effortFlag: false,
   jsonSchemaFlag: false,
@@ -54,6 +61,8 @@ export const NO_AGY_CAPABILITIES: AgyCapabilities = {
   printTimeout: false,
   sandboxFlag: false,
   dangerouslySkipPermissions: false,
+  disableSlashCommands: false,
+  agentFlag: false,
   raw: "",
 };
 
@@ -63,6 +72,7 @@ export function parseAgyHelp(help: string): AgyCapabilities {
   const has = (re: RegExp) => re.test(help);
   return {
     outputFormatJson: has(/--output-format\b/) && /\bjson\b/i.test(help),
+    streamJsonInput: has(/--input-format\b/) && /\bstream-json\b/.test(help),
     modelFlag: has(/--model\b/),
     effortFlag: has(/--effort\b/),
     jsonSchemaFlag: has(/--json-schema\b/),
@@ -73,6 +83,8 @@ export function parseAgyHelp(help: string): AgyCapabilities {
     printTimeout: has(/--print-timeout\b/),
     sandboxFlag: has(/--sandbox\b/),
     dangerouslySkipPermissions: has(/--dangerously-skip-permissions\b/),
+    disableSlashCommands: has(/--disable-slash-commands\b/),
+    agentFlag: has(/--agent\b/),
     raw: help,
   };
 }

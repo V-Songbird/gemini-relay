@@ -1,7 +1,7 @@
 // Shared harness for the live e2e suite. Spawns the REAL MCP server (the built
 // dist/index.js) over stdio and connects with the MCP SDK client — the same way
 // a real client (Claude, mcpjam, etc.) does. Tool calls therefore exercise the
-// entire product: protocol -> registry -> tool -> backend -> spawned gemini CLI.
+// entire product: protocol -> registry -> tool -> backend -> the spawned CLI.
 //
 // This file is intentionally not named *.test.ts so the runner does not execute
 // it directly.
@@ -13,18 +13,19 @@ import path from "node:path";
 import type { TestContext } from "node:test";
 import { inspect } from "node:util";
 import { fileURLToPath } from "node:url";
-import { CLI } from "../../src/constants.js";
+import { CLI, ENV, RETIREMENT } from "../../src/constants.js";
+import { getBackend } from "../../src/backends/index.js";
 import { resolveCommandForExecution } from "../../src/utils/commandExecutor.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(here, "..", "..");
 const SERVER_ENTRY = path.join(REPO_ROOT, "dist", "index.js");
 
-/** True when the real gemini CLI is installed and resolvable on PATH. */
-export function hasGemini(): boolean {
+/** True when `command` answers `--version`, i.e. the CLI is installed and resolvable. */
+export function hasCli(command: string): boolean {
   const isWindows = process.platform === "win32";
-  const command = resolveCommandForExecution(CLI.COMMANDS.GEMINI);
-  const executable = isWindows && /\s/.test(command) ? `"${command.replace(/"/g, '""')}"` : command;
+  const resolved = resolveCommandForExecution(command);
+  const executable = isWindows && /\s/.test(resolved) ? `"${resolved.replace(/"/g, '""')}"` : resolved;
   const result = spawnSync(executable, ["--version"], {
     stdio: "ignore",
     shell: isWindows,
@@ -33,10 +34,21 @@ export function hasGemini(): boolean {
   return result.status === 0;
 }
 
-/** Skip reason for gemini-dependent tests, or false when gemini is available. */
-export const GEMINI_SKIP: string | false = hasGemini()
-  ? false
-  : "gemini CLI not on PATH — run `npm i -g @google/gemini-cli` and authenticate";
+/**
+ * Skip reason for live-model tests, or false when they can run. Gated on the
+ * backend the server will actually select, not on `gemini`: since the retirement
+ * date the default is agy, so a machine with only agy installed used to skip
+ * every live test it could have run, and one with only gemini used to run tests
+ * that could not work.
+ */
+export const GEMINI_SKIP: string | false = (() => {
+  const backend = getBackend().name;
+  const command = backend === "agy" ? CLI.COMMANDS.AGY : CLI.COMMANDS.GEMINI;
+  if (hasCli(command)) return false;
+  return backend === "agy"
+    ? `agy not on PATH — install the Antigravity CLI (${RETIREMENT.AGY_INSTALL_CMD}), run \`agy\` once to sign in, or set ${ENV.AGY_CLI_PATH}`
+    : `gemini CLI not on PATH — set ${ENV.GEMINI_CLI_PATH}, or unset ${ENV.BACKEND} to use agy`;
+})();
 
 export interface ServerHandle {
   client: Client;

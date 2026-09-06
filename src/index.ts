@@ -16,6 +16,8 @@ import {
   GetPromptResult,
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { realpathSync, statSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { Logger } from "./utils/logger.js";
 import { PROTOCOL, ToolArguments } from "./constants.js";
 
@@ -27,7 +29,7 @@ import {
   getPromptMessage 
 } from "./tools/index.js";
 
-const server = new Server(
+export const server = new Server(
   {
     name: "gemini-relay",
     version: "1.2.0",
@@ -40,7 +42,23 @@ const server = new Server(
   },
 );
 
-let isProcessing = false; let currentOperationName = ""; let latestOutput = "";
+/**
+ * Keepalive state for ONE tool call. Nothing lives at module scope: two calls
+ * that overlap each own their interval, operation name and output preview.
+ * While this state was shared, the first call to finish flipped the flag for
+ * everyone, so the second call's interval cleared itself, its final
+ * notification carried the other call's name, and its output preview leaked
+ * across. agy runs are serialized behind a promise queue (backends/agy.ts), so
+ * the silenced call is exactly the one queued for minutes — the one whose
+ * client is about to give up on it.
+ */
+export interface ProgressState {
+  interval: NodeJS.Timeout;
+  progressToken?: string | number;
+  operationName: string;
+  processing: boolean;
+  latestOutput: string;
+}
 
 async function sendNotification(method: string, params: any) {
   try {
@@ -82,14 +100,10 @@ async function sendProgressNotification(
   }
 }
 
-function startProgressUpdates(
+export function startProgressUpdates(
   operationName: string,
   progressToken?: string | number
-) {
-  isProcessing = true;
-  currentOperationName = operationName;
-  latestOutput = ""; // Reset latest output
-  
+): ProgressState {
   const progressMessages = [
     `🧠 ${operationName} - Gemini is analyzing your request...`,
     `📊 ${operationName} - Processing files and generating insights...`,
@@ -111,50 +125,57 @@ function startProgressUpdates(
     );
   }
   
-  // Keep client alive with periodic updates
-  const progressInterval = setInterval(async () => {
-    if (isProcessing && progressToken) {
-      // Simply increment progress value
-      progress += 1;
-      
-      // Include latest output if available
-      const baseMessage = progressMessages[messageIndex % progressMessages.length];
-      const outputPreview = latestOutput.slice(-150).trim(); // Last 150 chars
-      const message = outputPreview 
-        ? `${baseMessage}\n📝 Output: ...${outputPreview}`
-        : baseMessage;
-      
-      await sendProgressNotification(
-        progressToken,
-        progress,
-        undefined, // No total - indeterminate progress
-        message
-      );
-      messageIndex++;
-    } else if (!isProcessing) {
-      clearInterval(progressInterval);
-    }
-  }, PROTOCOL.KEEPALIVE_INTERVAL); // Every 25 seconds
-  
-  return { interval: progressInterval, progressToken };
+  // Keep client alive with periodic updates. The interval reads this call's own
+  // state, so a sibling call finishing cannot silence it.
+  const state: ProgressState = {
+    operationName,
+    progressToken,
+    processing: true,
+    latestOutput: "",
+    interval: setInterval(async () => {
+      if (state.processing && progressToken) {
+        // Simply increment progress value
+        progress += 1;
+
+        // Include latest output if available
+        const baseMessage = progressMessages[messageIndex % progressMessages.length];
+        const outputPreview = state.latestOutput.slice(-150).trim(); // Last 150 chars
+        const message = outputPreview
+          ? `${baseMessage}\n📝 Output: ...${outputPreview}`
+          : baseMessage;
+
+        await sendProgressNotification(
+          progressToken,
+          progress,
+          undefined, // No total - indeterminate progress
+          message
+        );
+        messageIndex++;
+      } else if (!state.processing) {
+        clearInterval(state.interval);
+      }
+    }, PROTOCOL.KEEPALIVE_INTERVAL), // Every 25 seconds
+  };
+
+  return state;
 }
 
-function stopProgressUpdates(
-  progressData: { interval: NodeJS.Timeout; progressToken?: string | number },
+export function stopProgressUpdates(
+  progressData: ProgressState,
   success: boolean = true
 ) {
-  const operationName = currentOperationName; // Store before clearing
-  isProcessing = false;
-  currentOperationName = "";
+  progressData.processing = false;
   clearInterval(progressData.interval);
-  
+
   // Send final progress notification if client requested progress
   if (progressData.progressToken) {
     sendProgressNotification(
       progressData.progressToken,
       100,
       100,
-      success ? `✅ ${operationName} completed successfully` : `❌ ${operationName} failed`
+      success
+        ? `✅ ${progressData.operationName} completed successfully`
+        : `❌ ${progressData.operationName} failed`
     );
   }
 }
@@ -183,7 +204,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
 
       // Execute the tool using the unified registry with progress callback
       const result = await executeTool(toolName, args, (newOutput) => {
-        latestOutput = newOutput;
+        progressData.latestOutput = newOutput;
       });
 
       // Stop progress updates
@@ -255,4 +276,26 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   Logger.debug("gemini-relay listening on stdio");
-} main().catch((error) => {Logger.error("Fatal error:", error); process.exit(1); });
+}
+
+// Auto-start only when this file IS the process entry (`node dist/index.js`, or
+// the npm bin symlink, which realpathSync resolves). Importing the module — the
+// progress tests do, to drive overlapping calls — must not bind stdio.
+// Compared case-insensitively: on Windows the drive letter in argv[1] and in
+// import.meta.url can differ in case. Unknowable -> start, as before.
+function launchedDirectly(): boolean {
+  try {
+    const entry = realpathSync(process.argv[1]);
+    // `node .` / `node dist` hand us a directory, which node then resolves to
+    // this file via package.json "main" — a directory is never an import, so
+    // that is always a direct launch.
+    if (statSync(entry).isDirectory()) return true;
+    return pathToFileURL(entry).href.toLowerCase() === import.meta.url.toLowerCase();
+  } catch {
+    return true;
+  }
+}
+
+if (launchedDirectly()) {
+  main().catch((error) => {Logger.error("Fatal error:", error); process.exit(1); });
+}
