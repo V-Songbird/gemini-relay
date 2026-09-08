@@ -1,7 +1,7 @@
 # Gemini Relay — Agent Guide
 
 This is for the thing making the calls — a coding agent, an orchestrator, or you while you wire one
-up. It holds the nine tool schemas as the caller sees them, what comes back in each response mode,
+up. It holds the eleven tool schemas as the caller sees them, what comes back in each response mode,
 what an `@` token expands to, eight worked recipes, the model catalogue and the environment
 variables.
 
@@ -25,7 +25,7 @@ chunks.
    there is no command-line length ceiling on how much you inline — only the server's own byte
    budgets (§4). An older build, or one whose `agy --help` probe timed out, falls back to
    `-p <prompt>` and is still bounded by the OS argv cap.
-2. **A second model.** `effort: "high"` on `ask-gemini` or `gemini-plan` to check an algorithm, a
+2. **A second model.** `effort: "high"` on `gemini-ask` or `gemini-plan` to check an algorithm, a
    race condition or a design before you write it — and the non-Gemini models in §5 for a
    cross-vendor read on a separate quota bucket.
 3. **Parseable output.** A `jsonSchema` constrains the reply to your shape (§2 for how it arrives).
@@ -36,7 +36,7 @@ chunks.
 
 ## 2. Complete Tool Catalog & Schemas
 
-### Tool 1: `ask-gemini`
+### Tool 1: `gemini-ask`
 **Category:** General Analysis, Reasoning & Code Edits  
 **What it does:** Query Gemini (3.8 / 3.7 / 3.6 Flash, 3.1 Pro) — or the Claude and GPT-OSS models agy also offers (§5) — for analysis, reasoning, planning and code changes, with `@path` file inlining, reasoning effort controls, agent execution modes, and optional structured JSON schema enforcement.
 
@@ -81,7 +81,7 @@ chunks.
 #### Return Format:
 - Normal mode: Plain markdown text prefixed with `Gemini response:\n`, followed — when the run reported a thread id — by a `🧵 conversationId: <id>` line you can pass back as `conversationId`.
 - Structured output (`jsonSchema`): the JSON payload, with no `🧵 conversationId` line appended — but still behind the `Gemini response:` prefix, and behind any `⚠️` notice lines. Strip those leading lines before `JSON.parse()`. The notices you see in ordinary use are the once-per-process backend-migration notice, which is suppressed by setting `GEMINI_MCP_BACKEND` explicitly; the sandbox notice, which only fires when you pass `sandbox: true`; and, from the run itself, a notice naming any tool actions agy's persisted permission settings refused, or any non-SUCCESS status agy reported.
-- Change mode (`changeMode: true`): a `[CHANGEMODE OUTPUT …]` header, then one `### Edit N: <filename>` section per edit with a "Replace this exact text:" block and a "With this text:" block, then a footer — carrying `fetch-chunk` continuation instructions when the response was chunked. The `**FILE:**`/`OLD:`/`NEW:` shape is what Gemini is asked to emit, not what you receive (Recipe 4).
+- Change mode (`changeMode: true`): a `[CHANGEMODE OUTPUT …]` header, then one `### Edit N: <filename>` section per edit with a "Replace this exact text:" block and a "With this text:" block, then a footer — carrying `gemini-fetch-chunk` continuation instructions when the response was chunked. The `**FILE:**`/`OLD:`/`NEW:` shape is what Gemini is asked to emit, not what you receive (Recipe 4).
 - A capability the active *backend* cannot honour — model selection, reasoning effort, mode, JSON schema, sandbox isolation — is reported as a `⚠️` notice line prepended to the response. A flag the installed agy build does not advertise is dropped silently instead (§6), so the notice list is not a complete record of what was applied.
 
 > **On `sandbox`:** the flag is forwarded to `agy --sandbox`, but the agy backend declares `sandboxIsolatesToolExecution: false` (print mode runs tools with your own privileges), so the response also carries a notice that the sandbox request cannot be guaranteed. The legacy `gemini` backend does isolate. Use `mode: "plan"` when you need a genuinely read-only run on agy.
@@ -98,14 +98,14 @@ chunks.
   task: string;                       // Required: Feature, refactor, or architectural problem to plan.
   context?: string;                   // Optional: Requirements, constraints, or reference files (supports @file).
   model?: string;                     // Optional: Unset, this tool pins 'gemini-3.8-flash-high'
-                                      //           (unlike ask-gemini, which sends no --model at all). See §5.
+                                      //           (unlike gemini-ask, which sends no --model at all). See §5.
   effort?: "low" | "medium" | "high"; // Optional (default 'high'): Deep thinking token allocation.
   addDirs?: string[];                 // Optional: Workspace directories for project context.
   includeUsage?: boolean;             // Optional (default true): Append thinking/token metrics.
 }
 ```
 
-There is no `conversationId` here, in either direction: `gemini-plan` reads only the text and the notices off the run, so no `🧵 conversationId` line comes back and a plan cannot be resumed as a thread. Ask the follow-up through `ask-gemini`, which does report one.
+There is no `conversationId` here, in either direction: `gemini-plan` reads only the text and the notices off the run, so no `🧵 conversationId` line comes back and a plan cannot be resumed as a thread. Ask the follow-up through `gemini-ask`, which does report one.
 
 #### When Claude Code / Agents Should Use `gemini-plan`:
 - Before starting any multi-file feature or breaking refactor.
@@ -154,7 +154,7 @@ The report ends with a **Login & Quota** section built from `agy -p "/usage" --o
 
 ---
 
-### Tool 5: `brainstorm`
+### Tool 5: `gemini-brainstorm`
 **Category:** Ideation & Exploration  
 **What it does:** Generates ideas against a challenge you state, through one of five ideation frameworks — SCAMPER, Design Thinking, Lateral, Divergent or Convergent — or `auto` to let it pick. Domain, constraints and prior attempts feed in; feasibility and impact ratings come back. Reasoning effort applies.
 
@@ -162,7 +162,7 @@ The report ends with a **Login & Quota** section built from `agy -p "/usage" --o
 ```typescript
 {
   prompt: string;           // Required: Core challenge or topic to explore.
-  model?: string;           // Optional: Like ask-gemini, no default — unset, no --model is
+  model?: string;           // Optional: Like gemini-ask, no default — unset, no --model is
                             //           sent. See §5.
   effort?: "low" | "medium" | "high"; // Optional: Reasoning effort.
   methodology?: "divergent" | "convergent" | "scamper" | "design-thinking" | "lateral" | "auto"; // Default 'auto'
@@ -174,7 +174,7 @@ The report ends with a **Login & Quota** section built from `agy -p "/usage" --o
 }
 ```
 
-Like `gemini-plan`, `brainstorm` reports no `🧵 conversationId` line and takes no `conversationId`, so a round of ideas cannot be continued as a thread.
+Like `gemini-plan`, `gemini-brainstorm` reports no `🧵 conversationId` line and takes no `conversationId`, so a round of ideas cannot be continued as a thread.
 
 ### Tool 6: `gemini-image`
 **Category:** Multimodal Asset Generation  
@@ -195,14 +195,14 @@ Like `gemini-plan`, `brainstorm` reports no `🧵 conversationId` line and takes
 
 ---
 
-### Tool 7: `fetch-chunk`
+### Tool 7: `gemini-fetch-chunk`
 **Category:** Pagination & Diff Retrieval  
 **What it does:** Fetches a specific chunk of multi-file edit suggestions generated during a `changeMode` call that exceeded chunk size thresholds.
 
 #### Input Schema:
 ```typescript
 {
-  cacheKey: string;   // Required: 8-character lowercase hex key returned by ask-gemini.
+  cacheKey: string;   // Required: 8-character lowercase hex key returned by gemini-ask.
   chunkIndex: number; // Required: 1-based chunk index to retrieve.
 }
 ```
@@ -211,9 +211,32 @@ Chunks are cut at roughly 20,000 characters and cached on disk for **10 minutes*
 
 ---
 
-### Tools 8 & 9: `ping` and `Help`
-- `ping`: Returns the `prompt` string (or `Pong!` when none is given) to verify the server is alive. It answers in-process — no subprocess is spawned — so it proves the MCP transport works, not that the CLI does, and it times nothing. `prompt` (default `""`) is its only parameter; the zod schema strips every other key, so an argument like `message` never arrives. Use `gemini-doctor` to check the CLI.
-- `Help`: Retrieves the active backend's official CLI command line help manual (`agy --help`).
+### Tool 8: `gemini-conversations`
+**Category:** Conversation Management
+**What it does:** Lists the conversations agy has on disk, newest first, so you can pick one to resume with `gemini-ask`'s `conversationId`. Answered from the local store — no subprocess, no model turn.
+
+#### Input Schema:
+```typescript
+{
+  limit?: number; // Default 20, max 100. Newest first.
+}
+```
+
+Returns a table of `id`, ISO `last active`, `cwd` (when agy recorded one) and the first user prompt trimmed to one line. Continuing a thread: `gemini-ask { prompt, conversationId: "<id>" }`.
+
+---
+
+### Tool 9: `gemini-cancel`
+**Category:** Run Control
+**What it does:** Sends `SIGKILL` to every CLI child the relay has in flight. No parameters. The interrupted call rejects with `… was cancelled by gemini-cancel`; the relay itself stays up. Returns `Nothing was running.` when idle, else `Cancelled N run(s).`
+
+Use it when a `gemini-ask`, `gemini-plan`, `gemini-brainstorm` or `gemini-image` call is taking longer than you want to wait. It is the only way to stop a run short of the `GEMINI_MCP_TIMEOUT` deadline.
+
+---
+
+### Tools 10 & 11: `gemini-ping` and `gemini-help`
+- `gemini-ping`: Returns the `prompt` string (or `Pong!` when none is given) to verify the server is alive. It answers in-process — no subprocess is spawned — so it proves the MCP transport works, not that the CLI does, and it times nothing. `prompt` (default `""`) is its only parameter; the zod schema strips every other key, so an argument like `message` never arrives. Use `gemini-doctor` to check the CLI.
+- `gemini-help`: Retrieves the active backend's official CLI command line help manual (`agy --help`).
 
 ---
 
@@ -225,7 +248,7 @@ Chunks are cut at roughly 20,000 characters and cached on disk for **10 minutes*
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Audit @src/backends/agy.ts @src/utils/commandExecutor.ts @src/constants.ts for concurrency safety, unhandled promise rejections, and process leaks. Return a concise bulleted list of high-severity risks.",
     "model": "gemini-3.8-flash-high",
@@ -256,7 +279,7 @@ Chunks are cut at roughly 20,000 characters and cached on disk for **10 minutes*
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Analyze @package.json and list all outdated or vulnerable dependencies with recommended target versions.",
     "jsonSchema": {
@@ -289,7 +312,7 @@ Chunks are cut at roughly 20,000 characters and cached on disk for **10 minutes*
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Refactor @src/utils/commandExecutor.ts to use AbortController for process timeouts.",
     "changeMode": true
@@ -306,17 +329,17 @@ NEW:
 // new code with AbortController
 ```
 ````
-*What the tool returns to you is the parsed, validated form: a `[CHANGEMODE OUTPUT …]` header, then one `### Edit N: <filename>` section per edit with a "Replace this exact text" block and a "With this text" block.* Large responses are split into chunks; the footer then tells you the `cacheKey` and the next `chunkIndex` to pass to `fetch-chunk`.
+*What the tool returns to you is the parsed, validated form: a `[CHANGEMODE OUTPUT …]` header, then one `### Edit N: <filename>` section per edit with a "Replace this exact text" block and a "With this text" block.* Large responses are split into chunks; the footer then tells you the `cacheKey` and the next `chunkIndex` to pass to `gemini-fetch-chunk`.
 
 On that normal path no `FILE:` / `OLD:` / `NEW:` marker reaches you. The exception is a parse failure: when nothing parses, the tool answers `No edits found in Gemini's response. Please ensure Gemini uses the OLD/NEW format.` followed by the model's raw reply — markers and all — instead of inventing edits.
 
 ### Recipe 5: Continuing a Thread with `conversationId`
 **Problem:** You asked for an audit, and the follow-up question ("which of those would you fix first?") would otherwise re-send the whole context.
-**Solution:** An `ask-gemini` plain-text reply ends with `🧵 conversationId: <id>` — not a `jsonSchema` or `changeMode` reply, whose body is parsed, and never a `gemini-plan` or `brainstorm` reply, which report no id at all. Pass it back.
+**Solution:** An `gemini-ask` plain-text reply ends with `🧵 conversationId: <id>` — not a `jsonSchema` or `changeMode` reply, whose body is parsed, and never a `gemini-plan` or `gemini-brainstorm` reply, which report no id at all. Pass it back.
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Which of those findings would you fix first, and why?",
     "conversationId": "a4d4c538-336f-49ef-a4ba-ec2267dc35b2"
@@ -331,7 +354,7 @@ On that normal path no `FILE:` / `OLD:` / `NEW:` marker reaches you. The excepti
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": { "prompt": "/usage", "allowSlashCommands": true }
 }
 ```
@@ -343,7 +366,7 @@ On that normal path no `FILE:` / `OLD:` / `NEW:` marker reaches you. The excepti
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Review @src/backends/agy.ts for lost-error paths.",
     "agent": "reviewer",
@@ -359,7 +382,7 @@ On that normal path no `FILE:` / `OLD:` / `NEW:` marker reaches you. The excepti
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Apply the rename across @src/utils/logger.ts and its callers.",
     "mode": "accept-edits",
@@ -413,7 +436,7 @@ Run `gemini-models` for the live list — it comes from `agy models`, so it is t
 | `gemini-3.7-flash-high` / `-medium` / `-low` | - | Previous generation flash family, at three reasoning depths. | High → Low |
 | `gemini-3.6-flash-high` / `-medium` / `-low` | - | Older flash family, still live. Useful for reproducing an earlier run. | High → Low |
 
-"Advertised" because only two tools actually pin it. `gemini-plan` falls back to `gemini-3.8-flash-high` when you name no model, and `gemini-image` hardcodes it — it has no `model` parameter to name. `ask-gemini` and `brainstorm` do not: leave `model` unset there and no `--model` flag is sent at all, so agy answers on the model it is configured for.
+"Advertised" because only two tools actually pin it. `gemini-plan` falls back to `gemini-3.8-flash-high` when you name no model, and `gemini-image` hardcodes it — it has no `model` parameter to name. `gemini-ask` and `gemini-brainstorm` do not: leave `model` unset there and no `--model` flag is sent at all, so agy answers on the model it is configured for.
 
 Nothing in this repository or in `agy models` reports a per-model latency tier or context-window size, so none is given here. `effort` is the real, documented dial.
 
@@ -442,7 +465,7 @@ Pass them through `model` exactly like any Gemini id. They are absent from the b
 | `GEMINI_CLI_PATH` | File path string | `gemini` from PATH | Full path to the legacy `gemini` executable. **Windows only** — `resolveGemini` returns the bare command before it ever reads the override on macOS and Linux, where `gemini` comes from PATH. (`AGY_CLI_PATH` above is honoured on every platform.) |
 | `GEMINI_MCP_TIMEOUT` | Number (minutes) | `45` | Maximum total time allowed for a child process before the timeout kill. Any finite value greater than zero is accepted, fractions included (`0.5` is 30 seconds); only a non-numeric or non-positive value falls back to the default. Read once at module load, so a change needs a server restart. |
 | `AGY_PRINT_TIMEOUT` | Duration string (e.g. `10m`, `44m`) | Derived | Value forwarded to `agy --print-timeout`. When unset it is derived from the wrapper timeout to stay strictly below its kill deadline, so agy can report its own timeout: 60 seconds under the wrapper above a two-minute wrapper deadline, and half of it at or below two minutes. An explicit value overrides that derivation outright and is forwarded as given, with no clamping — set it above the wrapper deadline and the wrapper kills agy first. |
-| `GEMINI_MCP_TEST_TOOLS` | Any non-empty value | Unset | Registers the test-only `timeout-test` tool, so the server exposes ten tools instead of nine. For the test suite. |
+| `GEMINI_MCP_TEST_TOOLS` | Any non-empty value | Unset | Registers the test-only `gemini-timeout-test` tool, so the server exposes twelve tools instead of eleven. For the test suite. |
 | `AGY_MCP_PTY` | `1`, `true` or `yes` | Off | Opt-in POSIX-only recovery: re-run `agy -p` under a pseudo-terminal (via `script(1)`) when a TTY-only build printed nothing to a pipe. This re-run carries its **own independent 10-minute cap**, hard-coded in `src/backends/agyOutput.ts` and unaffected by `GEMINI_MCP_TIMEOUT` or `AGY_PRINT_TIMEOUT`; on expiry the whole process group is killed with `SIGKILL`. |
 
 **How the default backend is resolved.** There is no hardcoded default. The server compares today's date to the Gemini CLI retirement date, `2026-06-18`: before it, the legacy `gemini` CLI; on or after it, `agy` — because once gemini is retired for free/Pro/Ultra tiers, agy is the only live option. An explicit `GEMINI_MCP_BACKEND` always wins, and setting it also suppresses the one-per-process migration notice. An unrecognized value logs a warning and falls back to `gemini`.

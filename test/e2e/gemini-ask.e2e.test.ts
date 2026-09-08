@@ -21,9 +21,9 @@ after(async () => {
 });
 
 describe("MCP Protocol E2E: Live Gemini CLI & Tool Requests", () => {
-  test("ask-gemini answers a deterministic factual question", LIVE, async (t) => {
+  test("gemini-ask answers a deterministic factual question", LIVE, async (t) => {
     const { isError, text } = await callGemini(t, server, {
-      name: "ask-gemini",
+      name: "gemini-ask",
       arguments: { prompt: "What is 2 + 2? Reply with only the number.", model: MODEL },
     });
     assert.equal(isError, false, text);
@@ -34,9 +34,9 @@ describe("MCP Protocol E2E: Live Gemini CLI & Tool Requests", () => {
   // Note: native sessions (sessionId/resume) are a future feature — their e2e test
   // arrives with that PR. 1.1.7 covers the reliability + plain Q&A surface.
 
-  test("ask-gemini inlines an in-project @file reference", LIVE, async (t) => {
+  test("gemini-ask inlines an in-project @file reference", LIVE, async (t) => {
     const { isError, text } = await callGemini(t, server, {
-      name: "ask-gemini",
+      name: "gemini-ask",
       arguments: {
         prompt:
           "@test/e2e/fixtures/sentinel.txt Reply with only the sentinel token that appears in this file.",
@@ -48,7 +48,7 @@ describe("MCP Protocol E2E: Live Gemini CLI & Tool Requests", () => {
   });
 
   test("Help returns the gemini CLI help text", LIVE, async (t) => {
-    const res = await callTool(t, server, { name: "Help", arguments: {} });
+    const res = await callTool(t, server, { name: "gemini-help", arguments: {} });
     const text = textOf(res);
     assert.equal(res.isError ?? false, false, text);
     assert.match(text, /usage|--model|gemini/i);
@@ -56,11 +56,11 @@ describe("MCP Protocol E2E: Live Gemini CLI & Tool Requests", () => {
 
   // brainstorm generates free-form ideas: the slowest call, and nondeterministic
   // (flash can even return empty). Its prompt construction is unit-tested, and its
-  // integration path is identical to ask-gemini (proven above), so here we only
+  // integration path is identical to gemini-ask (proven above), so here we only
   // verify the live round-trip succeeds end-to-end. Larger timeout, single attempt.
   test("brainstorm completes a real round-trip through gemini", { skip: GEMINI_SKIP, timeout: 180_000 }, async (t) => {
     const res = await callTool(t, server, {
-      name: "brainstorm",
+      name: "gemini-brainstorm",
       arguments: { prompt: "one quick way to speed up CI", model: MODEL, ideaCount: 1, includeAnalysis: false },
     });
     assert.equal(res.isError ?? false, false, textOf(res));

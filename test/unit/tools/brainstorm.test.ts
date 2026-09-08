@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildBrainstormPrompt,
   getMethodologyInstructions,
-} from "../../../src/tools/brainstorm.tool.js";
+} from "../../../src/tools/gemini-brainstorm.tool.js";
 
 describe("MCP Tool: brainstorm Prompt", () => {
   test("getMethodologyInstructions returns the requested framework", () => {

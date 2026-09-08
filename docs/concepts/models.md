@@ -6,13 +6,13 @@ This page lists what you can pass as `model`, and what `effort` does on top of i
 
 ## Which model runs when you name none
 
-There is no default. `ask-gemini` and `brainstorm` send no `--model` flag at all when you leave `model` unset, so agy answers on whatever model it is itself configured to use.
+There is no default. `gemini-ask` and `gemini-brainstorm` send no `--model` flag at all when you leave `model` unset, so agy answers on whatever model it is itself configured to use.
 
 Two tools differ. `gemini-plan` pins `gemini-3.8-flash-high` when you name none. `gemini-image` has no `model` parameter at all.
 
 ## The models you can name
 
-Pass any of these as `model` to `ask-gemini`, `gemini-plan` or `brainstorm`.
+Pass any of these as `model` to `gemini-ask`, `gemini-plan` or `gemini-brainstorm`.
 
 | Model Identifier | Alias | Best For |
 | :--- | :--- | :--- |
@@ -42,7 +42,7 @@ They take the same `model` parameter as everything else:
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "@src/backends/agy.ts review the fallback ladder",
     "model": "claude-opus-4-6-thinking",
@@ -59,7 +59,7 @@ One is the `-high` / `-medium` / `-low` suffix baked into the model id. The othe
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "Audit @src/utils/geminiExecutor.ts for path traversal and symlink escapes.",
     "model": "gemini-3.1-pro-high",
@@ -73,7 +73,7 @@ One is the `-high` / `-medium` / `-low` suffix baked into the model id. The othe
 - **`effort: "medium"`**: balanced reasoning for refactoring and feature implementation.
 - **`effort: "low"`**: minimal thinking overhead for summaries, classification, and translation.
 
-`ask-gemini` and `brainstorm` send no `--effort` unless you pass one; `gemini-plan` defaults to `"high"`. The parameter is documented for the Gemini 3.8 Flash, 3.7 Flash and 3.1 Pro families.
+`gemini-ask` and `gemini-brainstorm` send no `--effort` unless you pass one; `gemini-plan` defaults to `"high"`. The parameter is documented for the Gemini 3.8 Flash, 3.7 Flash and 3.1 Pro families.
 
 Pass `includeUsage: true` to get the input, output and thinking token counts back with the answer. It is deliberately ignored when you also set a `jsonSchema`: the structured body is what you run `JSON.parse` on, and a trailing `📊 [Tokens: …]` line would make it unparseable.
 

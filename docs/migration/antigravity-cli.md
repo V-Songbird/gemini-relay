@@ -51,7 +51,7 @@ ways that matter.
 | Sandbox | `-s/--sandbox` | `--sandbox` exists and is forwarded, but the relay does not claim it isolates tool execution in `-p` | Honest notice, not a guarantee (§4) |
 | Approval modes | `--approval-mode {default,auto_edit,yolo,plan}` | only `--dangerously-skip-permissions` — **no longer a no-op**: since 1.1.5 headless runs honour the persisted permission settings | Exposed as `skipPermissions` |
 | Slash commands | n/a | a prompt starting with `/` expands as an agy command or skill (`/usage`, `/skills`, …) instead of reaching the model | `--disable-slash-commands` by default; opt back in with `allowSlashCommands: true` |
-| Sessions | `--session-id <id>`, `--resume` | `--conversation <id>`, `--continue` (continue is **global**, not per-workspace) | Explicit ids preferred; `ask-gemini` reports the `conversationId` (§5) |
+| Sessions | `--session-id <id>`, `--resume` | `--conversation <id>`, `--continue` (continue is **global**, not per-workspace) | Explicit ids preferred; `gemini-ask` reports the `conversationId` (§5) |
 | Auth | gemini OAuth / API key | OS credential store; run `agy` once interactively to sign in | `gemini-doctor` verifies it (§6) |
 | Transcript on disk | n/a (stdout is the source of truth) | JSONL transcripts under `~/.gemini/antigravity-cli/brain/...` (dual-writing `.db`) | Last-resort fallback only |
 
@@ -99,7 +99,7 @@ risks:
 | **S1b** | **Landed as opt-in, now vestigial.** `AGY_MCP_PTY=1` drives `agy -p` under a pseudo-terminal so a TTY-only build streams to a pipe the relay can capture, reading none of `agy`'s internal files. With 1.1.8+ nothing reaches this rung |
 | **S2** | **Landed.** `agyTranscript.ts` detects JSONL vs SQLite by what exists on disk and reads either behind one `readTranscriptResponse()` interface |
 | **S3** | Proposed: accept only transcript entries newer than the process start time. **Landed.** Discovery is start-time-bounded, so a stale answer from a previous run can never be returned when discovery races |
-| **S4** | Proposed: ask upstream to emit and accept a conversation id for headless callers. **Obsolete.** Nothing needs to come from upstream: `agy`'s JSON result carries `conversation_id`, and `ask-gemini` reports the id of the thread it created or continued — omitted under `jsonSchema` and `changeMode`, where the body must stay parseable. `gemini-plan` and `brainstorm` do not surface it. See [antigravity-cli#7](https://github.com/google-antigravity/antigravity-cli/issues/7) |
+| **S4** | Proposed: ask upstream to emit and accept a conversation id for headless callers. **Obsolete.** Nothing needs to come from upstream: `agy`'s JSON result carries `conversation_id`, and `gemini-ask` reports the id of the thread it created or continued — omitted under `jsonSchema` and `changeMode`, where the body must stay parseable. `gemini-plan` and `gemini-brainstorm` do not surface it. See [antigravity-cli#7](https://github.com/google-antigravity/antigravity-cli/issues/7) |
 
 ### 2. Model selection was gone in print mode — fixed in 1.1.10
 
@@ -116,7 +116,7 @@ also accepts the aliases `flash` and `pro` (`normalizeAgyModel`). The full catal
 [Models](/concepts/models).
 
 There is no relay-wide default: `gemini-plan` pins `gemini-3.8-flash-high` and `gemini-image`
-hardcodes it, while `ask-gemini` and `brainstorm` send no `--model` at all unless you name one,
+hardcodes it, while `gemini-ask` and `gemini-brainstorm` send no `--model` at all unless you name one,
 leaving the choice to agy's own configuration.
 
 | ID | Proposed, and where it landed |
@@ -166,12 +166,12 @@ The relay does the inlining itself. That is unchanged.
 - There are no graded approval modes, only `--dangerously-skip-permissions`. It is **no longer
   a no-op**: since 1.1.5 headless runs honour the persisted permission settings, so without the
   flag a tool call those settings disallow is simply refused, with nobody there to approve it.
-  `ask-gemini`'s `skipPermissions: true` maps to it.
+  `gemini-ask`'s `skipPermissions: true` maps to it.
 
 | ID | Proposed, and where it landed |
 | --- | --- |
 | **S11** | **Landed.** A guarantee the backend cannot honour produces a notice rather than silence |
-| **S12** | Proposed: make `agy`-backed tools read-only from the relay's side, since explaining and summarising files needs no tool execution at all, and prefer a planner-only print mode if `agy` ever exposed one. **Landed.** `--mode plan` is a real read-only planner mode; `gemini-plan` uses it, and `ask-gemini` accepts `mode: "plan"` |
+| **S12** | Proposed: make `agy`-backed tools read-only from the relay's side, since explaining and summarising files needs no tool execution at all, and prefer a planner-only print mode if `agy` ever exposed one. **Landed.** `--mode plan` is a real read-only planner mode; `gemini-plan` uses it, and `gemini-ask` accepts `mode: "plan"` |
 | **S13** | **Landed.** The `@file` project-root guard (S9) remains the one sandbox property the relay enforces itself, on the input side |
 
 ### 5. Sessions and concurrency
@@ -183,7 +183,7 @@ so concurrent callers in different repos can resume each other's threads.
 | ID | Proposed, and where it landed |
 | --- | --- |
 | **S14** | **Landed.** The relay prefers explicit `--conversation <id>` and never relies on `--continue`'s global "most recent" semantics |
-| **S15** | **Landed differently.** No relay-generated UUID is needed: `agy`'s JSON result carries `conversation_id`, which `ask-gemini` returns to the caller to pass back as `conversationId` (except under `jsonSchema` / `changeMode`, per S4) |
+| **S15** | **Landed differently.** No relay-generated UUID is needed: `agy`'s JSON result carries `conversation_id`, which `gemini-ask` returns to the caller to pass back as `conversationId` (except under `jsonSchema` / `changeMode`, per S4) |
 | **S16** | **Landed.** `agy` calls stay serialized behind one promise queue, so a second concurrent tool call waits for the first — the fix for the concurrency risk in §1 |
 
 ### 6. Packaging, auth, and detection

@@ -12,7 +12,7 @@ Start small, so a failure is obviously about setup and not about your prompt.
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": { "prompt": "In three sentences: mutex vs semaphore." }
 }
 ```
@@ -27,7 +27,7 @@ An `@` token in the prompt sends that file's contents along.
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": { "prompt": "@README.md summarize this" }
 }
 ```
@@ -42,7 +42,7 @@ Big files are cut and huge sets are dropped rather than silently half-sent. [Con
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": { "prompt": "/usage", "allowSlashCommands": true }
 }
 ```
@@ -50,7 +50,7 @@ Big files are cut and huge sets are dropped rather than silently half-sent. [Con
 <details>
 <summary><strong>For AI agents — inlining budgets, skips and slash-command gating</strong></summary>
 
-**Model and effort.** `ask-gemini` has no default `model`: omit it and no `--model` is sent, so agy answers on its own configured model. Any id `gemini-models` lists works, as do the aliases `flash` and `pro`. `effort` is `low` | `medium` | `high`.
+**Model and effort.** `gemini-ask` has no default `model`: omit it and no `--model` is sent, so agy answers on its own configured model. Any id `gemini-models` lists works, as do the aliases `flash` and `pro`. `effort` is `low` | `medium` | `high`.
 
 **What `@` resolves to.** A token that resolves to a file inside the project root is inlined before the prompt is sent, unless the file is binary, unreadable or past the budget. A directory (including `@.`) expands to the text files under it, and a glob expands to its matches.
 
@@ -60,7 +60,7 @@ Big files are cut and huge sets are dropped rather than silently half-sent. [Con
 
 **Escaping the root.** References that resolve outside the project root — `..` traversal or a symlink pointing out — are rejected.
 
-**Slash commands.** `agy` answers `/usage`, `/skills`, `/help`, `/agents`, `/model`, `/effort`, `/permissions`, `/hooks`, `/changelog`, `/config` and `/credits` itself, without a model turn. `ask-gemini` passes `--disable-slash-commands` by default — when the installed `agy` advertises that flag in its `--help`, which is how every flag the relay sends is gated — so a prompt starting with `/` goes to the model verbatim. Set `allowSlashCommands: true` to reach the command instead.
+**Slash commands.** `agy` answers `/usage`, `/skills`, `/help`, `/agents`, `/model`, `/effort`, `/permissions`, `/hooks`, `/changelog`, `/config` and `/credits` itself, without a model turn. `gemini-ask` passes `--disable-slash-commands` by default — when the installed `agy` advertises that flag in its `--help`, which is how every flag the relay sends is gated — so a prompt starting with `/` goes to the model verbatim. Set `allowSlashCommands: true` to reach the command instead.
 
 </details>
 

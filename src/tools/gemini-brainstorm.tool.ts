@@ -128,11 +128,11 @@ const brainstormArgsSchema = z.object({
 });
 
 export const brainstormTool: UnifiedTool = {
-  name: "brainstorm",
-  description: "Generate novel ideas with dynamic context gathering. --> Creative frameworks (SCAMPER, Design Thinking, etc.), domain context integration, idea clustering, feasibility analysis, and iterative refinement.",
+  name: "gemini-brainstorm",
+  description: "Generate a ranked list of ideas for an open-ended challenge using a named creativity method (SCAMPER, design thinking, lateral, divergent, convergent), with optional feasibility analysis. Ideation only: use gemini-ask for answers and gemini-plan for implementation blueprints.",
   zodSchema: brainstormArgsSchema,
   prompt: {
-    description: "Generate structured brainstorming prompt with methodology-driven ideation, domain context integration, and analytical evaluation framework",
+    description: "Brainstorm ideas for a challenge with a chosen creativity method and feasibility analysis.",
   },
   category: 'gemini',
   execute: async (args, onProgress) => {

@@ -79,8 +79,8 @@ timeline
 
 ## Shipped in v1.2.0 — 2026-09-03
 
-- Nine MCP tools: `ask-gemini`, `gemini-plan`, `gemini-image`, `gemini-models`,
-  `gemini-doctor`, `brainstorm`, `fetch-chunk`, `ping`, `Help`.
+- Nine MCP tools: `gemini-ask`, `gemini-plan`, `gemini-image`, `gemini-models`,
+  `gemini-doctor`, `gemini-brainstorm`, `gemini-fetch-chunk`, `gemini-ping`, `gemini-help`.
 - `agy` as the primary engine, with capability detection from `agy --help` so the backend
   adapts to whatever build is installed rather than assuming a version.
 - Model selection across the Gemini 3.8 / 3.7 / 3.6 Flash and 3.1 Pro families, reasoning
@@ -102,11 +102,11 @@ Each of these came out of a live field audit against `agy` 1.1.27:
   skipped during directory and glob expansion — those two skips do not apply to a file you
   name directly, though a binary, an unreadable file or one past the budget is still dropped
   — under a 256 KB per-file and 2 MB per-prompt budget that names what it left out.
-- **The conversation id comes back.** A plain-text `ask-gemini` reply ends with the id of the
+- **The conversation id comes back.** A plain-text `gemini-ask` reply ends with the id of the
   conversation it created or continued whenever agy reported one, so a follow-up needs no
   digging in agy's cache. A
   `jsonSchema` or `changeMode` reply omits it, because that body is parsed; `gemini-plan` and
-  `brainstorm` never report one.
+  `gemini-brainstorm` never report one.
 - **Login and quota in `gemini-doctor`.** It now runs the free, zero-token
   `agy -p "/usage" --output-format json` and reports each bucket's remaining fraction and
   reset time, rather than declaring "System Ready" over a signed-out account.

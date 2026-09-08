@@ -19,7 +19,7 @@ hero:
 features:
   - icon: ⚡
     title: Pick a model, or don't
-    details: Ask for Gemini 3.8 Flash, Gemini 3.1 Pro, or just say 'flash' or 'pro'. Give ask-gemini or brainstorm no model and agy answers on the model it is already set to.
+    details: Ask for Gemini 3.8 Flash, Gemini 3.1 Pro, or just say 'flash' or 'pro'. Give gemini-ask or gemini-brainstorm no model and agy answers on the model it is already set to.
   - icon: 🧠
     title: Choose how hard it thinks
     details: Set effort to 'low', 'medium' or 'high' on any one question, and pay for deep thinking only where it earns its keep.

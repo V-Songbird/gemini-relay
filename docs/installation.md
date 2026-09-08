@@ -74,7 +74,7 @@ The first six configure normal operation and live in `src/constants.ts`. The sev
 | `GEMINI_MCP_TIMEOUT` | CLI run timeout in **minutes**. Default `45`. |
 | `AGY_PRINT_TIMEOUT` | Overrides the `--print-timeout` value passed to `agy` (e.g. `30m`). Otherwise it is derived from the run timeout above. |
 | `AGY_MCP_PTY` | Opt-in: recover `agy -p` stdout through a pseudo-terminal. POSIX only. |
-| `GEMINI_MCP_TEST_TOOLS` | Registers the test-only `timeout-test` tool, so the server exposes ten tools instead of nine. Set it only when running the test suite. |
+| `GEMINI_MCP_TEST_TOOLS` | Registers the test-only `gemini-timeout-test` tool, so the server exposes twelve tools instead of eleven. Set it only when running the test suite. |
 
 </details>
 

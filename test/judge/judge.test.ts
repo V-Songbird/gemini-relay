@@ -208,11 +208,11 @@ after(async () => {
 });
 
 describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
-  test("ask-gemini general response meets Q&A rubric", options, async (t) => {
+  test("gemini-ask general response meets Q&A rubric", options, async (t) => {
     const prompt = "Explain the difference between synchronous and asynchronous execution in Javascript in one paragraph.";
     const startTime = Date.now();
     const { isError, text } = await callGemini(t, server, {
-      name: "ask-gemini",
+      name: "gemini-ask",
       arguments: { prompt, model: MODEL },
     });
     const durationMs = Date.now() - startTime;
@@ -232,7 +232,7 @@ describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
     assert.equal(evaluation.pass, true, `Judge failed evaluation: ${evaluation.reasoning}`);
   });
 
-  test("ask-gemini changeMode output meets structured edits rubric", options, async (t) => {
+  test("gemini-ask changeMode output meets structured edits rubric", options, async (t) => {
     // Read the version from package.json dynamically, so it always matches the active project environment
     let versionPrompt = "from 1.1.7 to 1.1.8";
     const activeCwd = config.changemodeProjectPath || process.cwd();
@@ -263,7 +263,7 @@ describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
     try {
       const startTime = Date.now();
       const { isError, text } = await callGemini(t, testServer, {
-        name: "ask-gemini",
+        name: "gemini-ask",
         arguments: { prompt, model: MODEL, changeMode: true },
       });
       const durationMs = Date.now() - startTime;
@@ -292,7 +292,7 @@ describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
     const prompt = "Suggest 3 unique ways to speed up unit tests in a large monorepo, explicitly showing which SCAMPER element is used for each.";
     const startTime = Date.now();
     const { isError, text } = await callGemini(t, server, {
-      name: "brainstorm",
+      name: "gemini-brainstorm",
       arguments: {
         prompt,
         model: MODEL,
@@ -320,8 +320,8 @@ describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
     assert.equal(evaluation.pass, true, `Judge failed evaluation: ${evaluation.reasoning}`);
   });
 
-  test("ask-gemini handles client-side timeout gracefully", options, async (t) => {
-    // Race a 5-second timeout-test call against a 1-second client-side timeout.
+  test("gemini-ask handles client-side timeout gracefully", options, async (t) => {
+    // Race a 5-second gemini-timeout-test call against a 1-second client-side timeout.
     // Expects the client-side timeout to fire first, then confirms the server
     // is still responsive afterwards.
     const timeoutPromise = new Promise<never>((_, reject) =>
@@ -329,7 +329,7 @@ describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
     );
 
     const toolCallPromise = callTool(t, server, {
-      name: "timeout-test",
+      name: "gemini-timeout-test",
       arguments: { duration: 5000 },
     });
 
@@ -341,7 +341,7 @@ describe("MCP Tool Semantic Evaluations (LLM-as-a-Judge)", () => {
       t.diagnostic("Client-side timeout hit as expected. Verifying server is still responsive...");
     }
 
-    const pingRes = await callTool(t, server, { name: "ping", arguments: { prompt: "alive" } });
+    const pingRes = await callTool(t, server, { name: "gemini-ping", arguments: { prompt: "alive" } });
     assert.equal(pingRes.isError ?? false, false);
     assert.match(textOf(pingRes), /alive/);
     t.diagnostic("Server is still fully responsive after client-side timeout.");

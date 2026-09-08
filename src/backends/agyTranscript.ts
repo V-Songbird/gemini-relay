@@ -77,6 +77,65 @@ export function newestConversationSince(sinceMs: number): string | undefined {
   return best?.id;
 }
 
+export interface ConversationSummary {
+  id: string;
+  /** Workspace the conversation was last used from, when agy recorded one. */
+  cwd?: string;
+  lastActiveMs: number;
+  /** First user message, trimmed to one line. */
+  firstPrompt?: string;
+}
+
+/** Most recent conversations on disk, newest first. */
+export function listConversations(limit = 20): ConversationSummary[] {
+  const cwdById = new Map<string, string>();
+  try {
+    const map = JSON.parse(readFileSync(LAST_CONVERSATIONS, "utf8")) as Record<string, string>;
+    for (const [cwd, id] of Object.entries(map)) cwdById.set(String(id), cwd);
+  } catch {
+    /* no map: ids still list, without a cwd */
+  }
+  let ids: string[];
+  try {
+    ids = readdirSync(brainDir);
+  } catch {
+    return [];
+  }
+  const found: ConversationSummary[] = [];
+  for (const id of ids) {
+    try {
+      found.push({ id, cwd: cwdById.get(id), lastActiveMs: statSync(logsDir(id)).mtimeMs });
+    } catch {
+      continue;
+    }
+  }
+  found.sort((a, b) => b.lastActiveMs - a.lastActiveMs);
+  const top = found.slice(0, Math.max(0, limit));
+  for (const c of top) c.firstPrompt = firstUserInput(c.id);
+  return top;
+}
+
+function firstUserInput(id: string): string | undefined {
+  try {
+    for (const line of readFileSync(jsonlPath(id), "utf8").split(/\r?\n/)) {
+      if (!line) continue;
+      let entry: TranscriptEntry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (entry.type === "USER_INPUT" && typeof entry.content === "string") {
+        const oneLine = entry.content.replace(/\s+/g, " ").trim();
+        return oneLine.length > 120 ? oneLine.slice(0, 117) + "..." : oneLine;
+      }
+    }
+  } catch {
+    /* no transcript yet */
+  }
+  return undefined;
+}
+
 /** Whether conversation `id`'s transcript was (re)written at or after `sinceMs`. */
 export function conversationFreshSince(id: string, sinceMs: number): boolean {
   try {

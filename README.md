@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Gemini Relay</h1>
-  <p><strong>Hand the big reading to Gemini. Your agent gets the answer back, not the files.</strong></p>
+  <p><strong>Give Claude a second model. Everything Gemini can do, one tool call away.</strong></p>
 </div>
 
 <p align="center">
@@ -12,38 +12,42 @@
 <p align="center">
     <a href="#install"><strong>Install</strong></a> &nbsp;·&nbsp;
     <a href="#what-is-this">What is this?</a> &nbsp;·&nbsp;
-    <a href="#why-youd-want-it">Why you'd want it</a> &nbsp;·&nbsp;
+    <a href="#what-gemini-brings">What Gemini brings</a> &nbsp;·&nbsp;
     <a href="#what-you-can-ask-for">What you can ask for</a> &nbsp;·&nbsp;
     <a href="#going-deeper">Going deeper</a>
 </p>
 
-> **TL;DR** — Your coding agent has a small context window, and reading a big folder fills it. Gemini Relay sends the reading to Google Gemini instead, and hands your agent back a short answer. Ask in plain English. Point at files with `@`, or let Gemini find them itself.
+> **TL;DR** — Gemini Relay is a bridge between your coding agent and Google Gemini. Claude asks, Gemini answers, and Claude keeps working. Image generation, a second pair of eyes on your code, plans, brainstorms, huge files, and models Claude cannot reach on its own. Ask in plain English. Point at files with `@`, or let Gemini find them itself.
 
 ---
 
 ## What is this?
 
-Your agent's context window is the thing you run out of first.
+Claude is a great coding agent. It is also one model, with one set of strengths and one quota.
 
-You ask it to review a folder. It opens twenty files, and now most of the window is source code it will never quote. The useful part of the answer is one paragraph, and there is no room left to act on it.
+Gemini Relay is a small MCP server that sits beside it. Your agent sends it a request, the request goes to Google Gemini through the Antigravity CLI, and the answer comes back as if Claude had done the work itself. No copy-pasting between two chats. No switching windows.
 
-Gemini Relay is a small server that sits beside your agent. Your agent sends it a question, the question goes to Google Gemini, and only the answer comes back. The files never enter your agent's window.
+That turns Gemini into a set of tools Claude can pick up whenever they fit: draw an image, review a diff, design a refactor, read a folder that would never fit in its window, or ask a different model the same question and compare.
 
 Gemini can read the project on its own, too. Point it at files with `@` when you want exactly those. Say nothing and it goes looking.
 
-## Why you'd want it
+## What Gemini brings
 
-A real one, measured on this repo.
+Things Claude gets by having Gemini next door.
 
-`package-lock.json` here is 181 KB. Reading it into an agent costs roughly 45,000 tokens, and then you still have to count the thing you wanted.
+**Images.** Gemini generates pictures. Claude does not. Ask for a hero image for the README, an icon, a diagram, a mock screenshot, and it lands in your repo as a file.
 
-Sent through the relay instead, the whole file went to Gemini and this came back in 19 seconds:
+**A second opinion.** A review from a different model catches different bugs. Hand Gemini a diff or a folder and get back a report that Claude did not write, then let Claude act on it.
+
+**Plans and brainstorms.** A dedicated planning tool for architecture and refactors, and a brainstorming tool with a choice of methods, both run on Gemini's deepest reasoning.
+
+**Big reading.** Gemini takes the files, Claude takes only the answer. The 181 KB `package-lock.json` in this repo would cost Claude roughly 45,000 tokens to open. Sent through the relay it came back in 19 seconds as one line:
 
 > ```json
 > { "count": 392 }
 > ```
 
-That is the entire cost to the agent. Nineteen seconds, one line, and the window is still empty for the work.
+**More models, more quota.** Whatever Antigravity offers is available: Gemini Flash and Pro at every effort level, plus Claude and GPT-OSS models on a separate quota bucket. When one well runs dry, another is a parameter away.
 
 ## Install
 
@@ -91,14 +95,16 @@ Talk to your agent normally. These are the shapes that work.
 
 | You want to… | Say something like |
 | --- | --- |
-| Review code without filling your window | *"Have gemini review `@src/backends` for race conditions."* |
-| Look at something too big to open | *"Ask gemini what's in `@package-lock.json`."* |
-| Let Gemini go find the problem itself | *"Ask gemini to find the riskiest code in this repo."* |
-| Get a plan before you write anything | *"Use gemini-plan to design retry with backoff for the upload queue."* |
-| Get a second opinion from another model | *"Ask gemini the same question, but with Claude Opus."* |
-| Get an answer your code can parse | *"Ask gemini for the outdated deps as JSON."* |
 | Make a picture | *"Use gemini-image for a 16:9 dark hero image, save it to `assets/hero.png`."* |
+| Get a second review of your code | *"Have gemini review `@src/backends` for race conditions."* |
+| Ask another model the same question | *"Ask gemini the same question, but with Claude Opus."* |
+| Get a plan before you write anything | *"Use gemini-plan to design retry with backoff for the upload queue."* |
 | Kick ideas around | *"Brainstorm ten ways to cut our cold-start time."* |
+| Let Gemini go find the problem itself | *"Ask gemini to find the riskiest code in this repo."* |
+| Look at something too big to open | *"Ask gemini what's in `@package-lock.json`."* |
+| Get an answer your code can parse | *"Ask gemini for the outdated deps as JSON."* |
+| Pick up an earlier thread | *"Run gemini-conversations and continue the one about the upload queue."* |
+| Stop a run that is taking too long | *"Run gemini-cancel."* |
 | See what models you have | *"Run gemini-models."* |
 | Find out why it broke | *"Run gemini-doctor."* |
 
@@ -107,11 +113,11 @@ Talk to your agent normally. These are the shapes that work.
 <details>
 <summary><strong>For AI agents — the full tool surface</strong></summary>
 
-Nine tools. Every parameter, every default. A tenth, `timeout-test`, appears only when `GEMINI_MCP_TEST_TOOLS` is set.
+Eleven tools, every one prefixed `gemini-`. Every parameter, every default. A twelfth, `gemini-timeout-test`, appears only when `GEMINI_MCP_TEST_TOOLS` is set.
 
 | Tool | Parameter | Type · default | Notes |
 | --- | --- | --- | --- |
-| `ask-gemini` | `prompt` | string, required | Supports `@file`, `@dir`, `@.`, globs. |
+| `gemini-ask` | `prompt` | string, required | Supports `@file`, `@dir`, `@.`, globs. |
 | | `model` | string | Any id `gemini-models` lists, or `flash` / `pro`. Unset sends no `--model`, so agy answers on its own configured model. |
 | | `effort` | `low` \| `medium` \| `high` | Thinking depth. |
 | | `mode` | `plan` \| `accept-edits` | `plan` is read-only. |
@@ -123,7 +129,7 @@ Nine tools. Every parameter, every default. A tenth, `timeout-test`, appears onl
 | | `skipPermissions` | boolean · `false` | `--dangerously-skip-permissions`. Headless runs honour persisted permissions since agy 1.1.5, so without this a disallowed tool call is refused with nobody to approve it. |
 | | `includeUsage` | boolean · `false` | Appends tokens and timing. Ignored with `jsonSchema`. |
 | | `sandbox` | boolean · `false` | Forwarded, but agy does **not** isolate tool execution headless, and says so in a notice. The legacy `gemini` backend does. |
-| | `changeMode` | boolean · `false` | Gemini emits `**FILE: path:line**` over a fenced `OLD:` / `NEW:` block; you receive the parsed form — a `[CHANGEMODE OUTPUT …]` header, one `### Edit N` section per edit, and a `fetch-chunk` footer when chunked. |
+| | `changeMode` | boolean · `false` | Gemini emits `**FILE: path:line**` over a fenced `OLD:` / `NEW:` block; you receive the parsed form — a `[CHANGEMODE OUTPUT …]` header, one `### Edit N` section per edit, and a `gemini-fetch-chunk` footer when chunked. |
 | | `chunkIndex` | number \| string | Which chunk (1-based). With `chunkCacheKey` it replays a cached chunk; alone it picks a chunk of a fresh result. |
 | | `chunkCacheKey` | string | Exactly 8 lowercase hex characters, or the call is refused. |
 | `gemini-plan` | `task` | string, required | The thing to plan. |
@@ -136,16 +142,18 @@ Nine tools. Every parameter, every default. A tenth, `timeout-test`, appears onl
 | | `aspectRatio` | enum · `1:1` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `5:4` `4:5` `21:9` `4:1` `1:4` `8:1` `1:8`. |
 | | `size` | `512` \| `1K` \| `2K` \| `4K` | Omit to let Gemini pick. |
 | | `outputPath` | string | Relative workspace path. Escaping the root is refused. |
-| `brainstorm` | `prompt` | string, required | |
+| `gemini-brainstorm` | `prompt` | string, required | |
 | | `methodology` | `divergent` \| `convergent` \| `scamper` \| `design-thinking` \| `lateral` \| `auto` · `auto` | |
 | | `model`, `effort`, `domain`, `constraints`, `existingContext` | string | |
 | | `ideaCount` | integer · `12` | |
 | | `includeAnalysis` | boolean · `true` | Never reports a conversation id. |
-| `fetch-chunk` | `cacheKey`, `chunkIndex` | string, number — both required | Both reported by the initial `changeMode` reply. |
+| `gemini-fetch-chunk` | `cacheKey`, `chunkIndex` | string, number — both required | Both reported by the initial `changeMode` reply. |
+| `gemini-conversations` | `limit` | integer · `20` | Recent conversations from agy's local store, newest first: id, last activity, cwd, first prompt. Max 100. No model turn. |
+| `gemini-cancel` | — | | Kills every CLI run in flight. Each cancelled call returns an error to its caller. |
 | `gemini-models` | — | | Live catalogue from `agy models`, plus backend capabilities. |
 | `gemini-doctor` | — | | Binaries, versions, backend, plus login and quota via a free `agy -p "/usage"`. |
-| `ping` | `prompt` | string · `""` | Answered in process. Proves the transport is alive, not the CLI. |
-| `Help` | — | | The backend CLI's own `--help`. |
+| `gemini-ping` | `prompt` | string · `""` | Answered in process. Proves the transport is alive, not the CLI. |
+| `gemini-help` | — | | The backend CLI's own `--help`. |
 
 **One rule for every flag.** The relay sends a flag only when the installed `agy` advertised it in `--help`. If that probe finds nothing, no flags are sent at all and the run falls back to agy's defaults — an unknown flag makes agy exit non-zero and fails the whole request.
 
@@ -161,7 +169,7 @@ Nine tools. Every parameter, every default. A tenth, `timeout-test`, appears onl
 | `GEMINI_MCP_TIMEOUT` | `45` | Wrapper timeout in minutes. Fractions accepted. Read once at load. |
 | `AGY_PRINT_TIMEOUT` | derived | Go duration forwarded to `agy --print-timeout`. Derived as 60 s under the wrapper above a two-minute wrapper, half of it at or below. |
 | `AGY_MCP_PTY` | unset | `1` to recover `agy -p` stdout through a pseudo-terminal. POSIX only, recovery path only, own 10-minute cap. |
-| `GEMINI_MCP_TEST_TOOLS` | unset | Registers the test-only `timeout-test` tool. |
+| `GEMINI_MCP_TEST_TOOLS` | unset | Registers the test-only `gemini-timeout-test` tool. |
 
 </details>
 

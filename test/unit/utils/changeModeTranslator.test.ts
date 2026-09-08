@@ -34,14 +34,14 @@ describe("Node Utilities: changeMode Translator", () => {
     assert.match(out, /2 modifications\b/);
   });
 
-  test("formatChangeModeResponse emits chunk headers and a fetch-chunk continuation", () => {
+  test("formatChangeModeResponse emits chunk headers and a gemini-fetch-chunk continuation", () => {
     const out = formatChangeModeResponse([edit("a.ts", "x", "y")], {
       current: 1,
       total: 3,
       cacheKey: "abcd1234",
     });
     assert.match(out, /Chunk 1 of 3/);
-    assert.ok(out.includes('fetch-chunk cacheKey="abcd1234" chunkIndex=2'));
+    assert.ok(out.includes('gemini-fetch-chunk cacheKey="abcd1234" chunkIndex=2'));
     assert.match(out, /2 more chunks/);
   });
 
@@ -52,7 +52,7 @@ describe("Node Utilities: changeMode Translator", () => {
       cacheKey: "abcd1234",
     });
     assert.match(out, /Chunk 3 of 3/);
-    assert.doesNotMatch(out, /fetch-chunk cacheKey/);
+    assert.doesNotMatch(out, /gemini-fetch-chunk cacheKey/);
   });
 
   test("summarizeChangeModeEdits counts edits and affected files", () => {

@@ -14,26 +14,26 @@ beforeEach(() => clearCache());
 
 describe("MCP Subsystem Integration: Tool Input Validation Contracts", () => {
   test("executeTool surfaces zod validation as a friendly error", async () => {
-    // ask-gemini requires a non-empty prompt; the error names the offending field.
-    await assert.rejects(() => executeTool("ask-gemini", {}), /Invalid arguments for ask-gemini.*prompt/s);
+    // gemini-ask requires a non-empty prompt; the error names the offending field.
+    await assert.rejects(() => executeTool("gemini-ask", {}), /Invalid arguments for gemini-ask.*prompt/s);
   });
 
   test("executeTool throws for an unknown tool", async () => {
     await assert.rejects(() => executeTool("no-such-tool", {}), /Unknown tool/);
   });
 
-  test("fetch-chunk via the registry returns a cache-miss message (no spawn)", async () => {
-    const out = await executeTool("fetch-chunk", { cacheKey: "deadbeef", chunkIndex: 1 });
+  test("gemini-fetch-chunk via the registry returns a cache-miss message (no spawn)", async () => {
+    const out = await executeTool("gemini-fetch-chunk", { cacheKey: "deadbeef", chunkIndex: 1 });
     assert.match(out, /Cache miss/);
   });
 
-  test("fetch-chunk via the registry rejects a malformed cache key (no spawn)", async () => {
-    const out = await executeTool("fetch-chunk", { cacheKey: "not-a-key", chunkIndex: 1 });
+  test("gemini-fetch-chunk via the registry rejects a malformed cache key (no spawn)", async () => {
+    const out = await executeTool("gemini-fetch-chunk", { cacheKey: "not-a-key", chunkIndex: 1 });
     assert.match(out, /Invalid cacheKey format/);
   });
 
-  test("ask-gemini rejects a malformed chunkCacheKey before calling Gemini", async () => {
-    const out = await executeTool("ask-gemini", {
+  test("gemini-ask rejects a malformed chunkCacheKey before calling Gemini", async () => {
+    const out = await executeTool("gemini-ask", {
       prompt: "x",
       changeMode: true,
       chunkIndex: 1,
@@ -42,10 +42,10 @@ describe("MCP Subsystem Integration: Tool Input Validation Contracts", () => {
     assert.match(out, /Invalid chunkCacheKey format/);
   });
 
-  test("ask-gemini changeMode continuation with a missing cache reports a cache miss (no spawn)", async () => {
+  test("gemini-ask changeMode continuation with a missing cache reports a cache miss (no spawn)", async () => {
     // Well-formed key, but nothing cached -> the continuation path returns the
     // cache-miss message rather than shelling out to Gemini.
-    const out = await executeTool("ask-gemini", {
+    const out = await executeTool("gemini-ask", {
       prompt: "x",
       changeMode: true,
       chunkIndex: 1,
@@ -123,8 +123,8 @@ describe("MCP Subsystem Integration: Concurrent Progress Keepalives", () => {
   });
 
   test("two overlapping calls each complete under their own operation name", async () => {
-    const a = startProgressUpdates("ask-gemini", "token-a");
-    const b = startProgressUpdates("brainstorm", "token-b");
+    const a = startProgressUpdates("gemini-ask", "token-a");
+    const b = startProgressUpdates("gemini-brainstorm", "token-b");
     await flush();
 
     stopProgressUpdates(a, true); // the shared-state version stole b's name here
@@ -132,24 +132,24 @@ describe("MCP Subsystem Integration: Concurrent Progress Keepalives", () => {
     await flush();
 
     assert.deepEqual(progressFor("token-a").map((p) => p.message), [
-      "🔍 Starting ask-gemini",
-      "✅ ask-gemini completed successfully",
+      "🔍 Starting gemini-ask",
+      "✅ gemini-ask completed successfully",
     ]);
     assert.deepEqual(progressFor("token-b").map((p) => p.message), [
-      "🔍 Starting brainstorm",
-      "❌ brainstorm failed",
+      "🔍 Starting gemini-brainstorm",
+      "❌ gemini-brainstorm failed",
     ]);
 
     // Wire shape: indeterminate at the start, 100/100 at the end.
     const [start, final] = progressFor("token-a");
-    assert.deepEqual(start, { progressToken: "token-a", progress: 0, message: "🔍 Starting ask-gemini" });
+    assert.deepEqual(start, { progressToken: "token-a", progress: 0, message: "🔍 Starting gemini-ask" });
     assert.equal(final.progress, 100);
     assert.equal(final.total, 100);
   });
 
   test("a finished call does not silence the keepalive of one still running", async () => {
     await withCapturedIntervals(async (tick) => {
-      const a = startProgressUpdates("ask-gemini", "token-a");
+      const a = startProgressUpdates("gemini-ask", "token-a");
       const b = startProgressUpdates("gemini-plan", "token-b");
       a.latestOutput = "OUTPUT-FROM-A";
       b.latestOutput = "OUTPUT-FROM-B";
@@ -178,8 +178,8 @@ describe("MCP Subsystem Integration: Concurrent Progress Keepalives", () => {
 
   test("a call without a progressToken stays silent while a sibling reports", async () => {
     await withCapturedIntervals(async (tick) => {
-      const quiet = startProgressUpdates("ping");
-      const loud = startProgressUpdates("ask-gemini", "token-loud");
+      const quiet = startProgressUpdates("gemini-ping");
+      const loud = startProgressUpdates("gemini-ask", "token-loud");
       await flush();
 
       await tick();

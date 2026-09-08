@@ -58,8 +58,8 @@ The difference between a useful answer and a vague one is usually in the questio
 
 ## Threads
 
-An `ask-gemini` reply ends with the conversation id it created or continued. Pass it back and the next question keeps the earlier answers.
+An `gemini-ask` reply ends with the conversation id it created or continued. Pass it back and the next question keeps the earlier answers.
 
-The id is left off in `changeMode` and when a `jsonSchema` is set, because both bodies have to stay parseable, and `gemini-plan` and `brainstorm` never report one at all.
+The id is left off in `changeMode` and when a `jsonSchema` is set, because both bodies have to stay parseable, and `gemini-plan` and `gemini-brainstorm` never report one at all.
 
 Resuming replays the thread's history, so it is not free. Start a new thread when the subject changes.

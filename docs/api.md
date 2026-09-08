@@ -24,7 +24,7 @@ The **argv of each spawn** keeps flag names and replaces every other element wit
 The **`tools/call` arguments** are shaped only where they are strings:
 
 ```
-Tool ask-gemini(prompt=<412 chars> effort=<4 chars> changeMode=true)
+Tool gemini-ask(prompt=<412 chars> effort=<4 chars> changeMode=true)
 ```
 
 Every string argument is reduced to its length. Non-string arguments — booleans, numbers, `addDirs`, and a `jsonSchema` passed as an object — are serialized whole.
@@ -33,7 +33,7 @@ Every string argument is reduced to its length. Non-string arguments — boolean
 
 ## `tools/list`
 
-Nine tools, in registry order: `ask-gemini`, `gemini-plan`, `gemini-image`, `gemini-models`, `gemini-doctor`, `brainstorm`, `fetch-chunk`, `ping`, `Help`. (A tenth, `timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set for the test suite.)
+Eleven tools, in registry order: `gemini-ask`, `gemini-plan`, `gemini-image`, `gemini-models`, `gemini-doctor`, `gemini-brainstorm`, `gemini-fetch-chunk`, `gemini-conversations`, `gemini-cancel`, `gemini-ping`, `gemini-help`. (A twelfth, `gemini-timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set for the test suite.)
 
 Each `inputSchema` is generated from the tool's Zod schema, so the JSON Schema the client receives is the same object the server validates against, declared defaults included. It is always `{ "type": "object", "properties": {...}, "required": [...] }`. For what those properties and defaults are, see the [Agent Guide](/AGENT_GUIDE).
 
@@ -70,11 +70,11 @@ The transport carries plain text, so the server marks up its own additions:
 
 | Marker | Meaning |
 | :--- | :--- |
-| `Gemini response:` | Prefix on every `ask-gemini` reply except `changeMode` — a `jsonSchema` reply carries it too, so the body is not bare JSON. |
-| `🧵 conversationId: <id>` | The thread the run created or continued. Appended by `ask-gemini` alone, on a plain-text reply: omitted when `jsonSchema` is set and in `changeMode`, and `gemini-plan` and `brainstorm` never report one at all. Pass it back to `ask-gemini` as `conversationId` to resume. |
+| `Gemini response:` | Prefix on every `gemini-ask` reply except `changeMode` — a `jsonSchema` reply carries it too, so the body is not bare JSON. |
+| `🧵 conversationId: <id>` | The thread the run created or continued. Appended by `gemini-ask` alone, on a plain-text reply: omitted when `jsonSchema` is set and in `changeMode`, and `gemini-plan` and `gemini-brainstorm` never report one at all. Pass it back to `gemini-ask` as `conversationId` to resume. |
 | `⚠️ <notice>` | One or more lines *prepended* to the body when the active backend could not honour part of the request (model selection, reasoning effort, mode, JSON schema, sandbox isolation), when the backend default has flipped to `agy`, and when the run itself reports a non-SUCCESS status or names tool actions it refused. A flag the installed agy build does not advertise is dropped without a notice, so this is not a complete record of what was applied. |
 | `📊 [Tokens: … in, … out (… thinking)]` | Appended when `includeUsage` is set — but never when `jsonSchema` is also set, because a trailing line would stop the body being valid JSON. The two are effectively mutually exclusive. |
-| `[CHANGEMODE OUTPUT …]` | Header of a parsed `changeMode` response, followed by one `### Edit N: <file>` section per edit — each a "Replace this exact text:" block and a "With this text:" block — and a footer, which carries the `fetch-chunk` continuation call when the response was chunked. This rendered shape is what a successfully parsed response looks like; the `**FILE:**`/`OLD:`/`NEW:` markers are what the model is asked to emit, and reach the caller only when nothing parsed, in which case the tool answers `No edits found in Gemini's response…` followed by the model's raw text. |
+| `[CHANGEMODE OUTPUT …]` | Header of a parsed `changeMode` response, followed by one `### Edit N: <file>` section per edit — each a "Replace this exact text:" block and a "With this text:" block — and a footer, which carries the `gemini-fetch-chunk` continuation call when the response was chunked. This rendered shape is what a successfully parsed response looks like; the `**FILE:**`/`OLD:`/`NEW:` markers are what the model is asked to emit, and reach the caller only when nothing parsed, in which case the tool answers `No edits found in Gemini's response…` followed by the model's raw text. |
 
 ---
 
@@ -85,7 +85,7 @@ Every tool is also exposed as an MCP prompt under the same name, so slash-comman
 `prompts/get` returns one `user` message whose text tells the assistant which tool to call:
 
 ```
-Use the ask-gemini tool: Explain @src/index.ts (model: pro) [changeMode]
+Use the gemini-ask tool: Explain @src/index.ts (model: pro) [changeMode]
 ```
 
 The `prompt` argument comes first, boolean `true` arguments render as `[name]`, anything else renders as `(name: value)`, and `false`/`null`/`undefined` are dropped.

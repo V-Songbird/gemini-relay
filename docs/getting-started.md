@@ -25,7 +25,7 @@ claude mcp add gemini-relay -- npx -y gemini-relay
 
 Claude Desktop, Cursor, Windsurf and a global npm install are in [Installation](/installation).
 
-Then run `/mcp` inside Claude Code. Nine tools should be listed: `ask-gemini`, `gemini-plan`, `gemini-image`, `gemini-models`, `gemini-doctor`, `brainstorm`, `fetch-chunk`, `ping` and `Help`.
+Then run `/mcp` inside Claude Code. Eleven tools should be listed, all prefixed `gemini-`: `gemini-ask`, `gemini-plan`, `gemini-image`, `gemini-models`, `gemini-doctor`, `gemini-brainstorm`, `gemini-fetch-chunk`, `gemini-conversations`, `gemini-cancel`, `gemini-ping`, `gemini-help`.
 
 ## 3. Check it worked
 
@@ -49,7 +49,7 @@ If it says `agy` was not found even though your own shell finds it, the server d
 | | |
 | --- | --- |
 | Node floor | `18.19.0`, declared in `package.json` engines. CI runs 18.x, 20.x and 22.x. |
-| Tool count | Nine. A tenth, `timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set — see [environment variables](/installation#environment-variables). |
+| Tool count | Nine. A tenth, `gemini-timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set — see [environment variables](/installation#environment-variables). |
 | `gemini-doctor` reports | The active backend and where that choice came from; the resolved `agy` and `gemini` executables and their versions; and — when `agy` is the active backend and was found — login and quota. |
 | How it reads quota | By running `agy -p "/usage" --output-format json`. Agy's own command layer answers that without an agent turn, so it costs no tokens. |
 | `npm run doctor` | The same diagnostic, run from a clone of the repository rather than through MCP. |

@@ -252,7 +252,7 @@ Use a path relative to the project root with no `..` segments. If the content ge
 lives elsewhere, add that directory to the run instead:
 
 ```json
-{ "name": "ask-gemini", "arguments": {
+{ "name": "gemini-ask", "arguments": {
     "prompt": "@src/index.ts compare against the shared library",
     "addDirs": ["../shared-lib"] } }
 ```
@@ -261,13 +261,13 @@ lives elsewhere, add that directory to the run instead:
 
 agy treats a prompt beginning with `/` as one of its own commands or skills. Those answer for
 free, with no model turn — but it also means an ordinary prompt that happens to start with a
-slash would never reach the model. So `ask-gemini` sends `--disable-slash-commands` by default
+slash would never reach the model. So `gemini-ask` sends `--disable-slash-commands` by default
 and your text goes to the model verbatim.
 
 To reach the commands on purpose:
 
 ```json
-{ "name": "ask-gemini", "arguments": {
+{ "name": "gemini-ask", "arguments": {
     "prompt": "/usage",
     "allowSlashCommands": true } }
 ```
@@ -341,7 +341,7 @@ every capability then defaults to false.
 | `GEMINI_MCP_TIMEOUT` | `45` | Wrapper run timeout in **minutes**. Any finite value greater than zero is accepted, fractions included — `0.5` is a 30-second cap, useful for testing the timeout path. Only a non-numeric or non-positive value falls back to the default. Read once, when the server process starts. |
 | `AGY_PRINT_TIMEOUT` | derived | Overrides agy's own `--print-timeout` with a Go duration string (e.g. `30m`). Derived otherwise to sit strictly below the wrapper deadline: one minute less when the total is over 120 s, half of it at or below. |
 | `AGY_MCP_PTY` | unset | `1` opts into the POSIX-only recovery path — re-run agy under a pseudo-terminal when print mode yields nothing. Carries its own independent **10-minute** cap, after which the whole process group is SIGKILLed; raising `GEMINI_MCP_TIMEOUT` does not extend it. |
-| `GEMINI_MCP_TEST_TOOLS` | unset | Registers the test-only `timeout-test` tool, so the server exposes ten instead of nine. |
+| `GEMINI_MCP_TEST_TOOLS` | unset | Registers the test-only `gemini-timeout-test` tool, so the server exposes ten instead of nine. |
 | `NODE_ENV` | unset | `test` mutes routine log lines. |
 
 There is no API-key variable: `agy` authenticates through its own interactive login.
@@ -361,7 +361,7 @@ and each argument, with a **string** value replaced by its length and every othe
 (boolean, number, `addDirs`, a `jsonSchema` object) printed as its JSON in full:
 
 ```text
-[GMCPT] Tool ask-gemini(prompt=<47 chars> model=<19 chars> changeMode=true)
+[GMCPT] Tool gemini-ask(prompt=<47 chars> model=<19 chars> changeMode=true)
 ```
 
 So neither the prompt you typed nor the files it expanded to reach `%APPDATA%\Claude\logs\`
