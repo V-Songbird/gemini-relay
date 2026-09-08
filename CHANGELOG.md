@@ -2,7 +2,7 @@
 
 All notable changes to **Gemini Relay** will be documented in this file.
 
-## [Unreleased]
+## [2.0.0] - 2026-09-08
 
 ### Changed
 - **BREAKING: every tool is now named `gemini-*`.** `ask-gemini` → `gemini-ask`, `brainstorm` → `gemini-brainstorm`, `fetch-chunk` → `gemini-fetch-chunk`, `ping` → `gemini-ping`, `Help` → `gemini-help`, and the test-only `timeout-test` → `gemini-timeout-test`. No aliases: a call on an old name is refused with `Unknown tool`. Update any prompt, skill or config that names a tool.
