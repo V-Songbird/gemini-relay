@@ -1,4 +1,4 @@
-import { spawn, execSync } from "child_process";
+import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync } from "fs";
 import os from "os";
 import path from "path";
@@ -146,6 +146,25 @@ function resolveCommandTimeoutMs(): number {
 }
 export const COMMAND_TIMEOUT_MS = resolveCommandTimeoutMs();
 
+// Every child still running, so gemini-cancel can stop them. Entries leave on close.
+const running = new Set<ChildProcess>();
+const cancelled = new WeakSet<ChildProcess>();
+
+/** Kill every in-flight CLI run. Returns how many were signalled. */
+export function cancelRunningCommands(): number {
+  let count = 0;
+  for (const child of running) {
+    cancelled.add(child);
+    try {
+      child.kill("SIGKILL");
+      count++;
+    } catch {
+      /* already gone */
+    }
+  }
+  return count;
+}
+
 export async function executeCommand(
   command: string,
   args: string[],
@@ -183,6 +202,7 @@ export async function executeCommand(
       windowsHide: true,
       stdio: [stdinData !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    running.add(childProcess);
 
     if (stdinData !== undefined && childProcess.stdin) {
       // If the child has already exited/closed its stdin, write() emits EPIPE on
@@ -253,6 +273,7 @@ export async function executeCommand(
     timer.unref?.();
 
     childProcess.on("error", (error) => {
+      running.delete(childProcess);
       if (isResolved) return;
       isResolved = true;
       clearTimeout(timer);
@@ -265,9 +286,15 @@ export async function executeCommand(
       }
     });
     childProcess.on("close", (code) => {
+      running.delete(childProcess);
       if (isResolved) return;
       isResolved = true;
       clearTimeout(timer);
+      if (cancelled.has(childProcess)) {
+        Logger.commandComplete(startTime, code);
+        reject(new Error(`${command} was cancelled by gemini-cancel`));
+        return;
+      }
       if (code === 0) {
         const out = stdout.trim();
         // Exit 0 but empty answer with text on stderr (agy quota/auth notices land

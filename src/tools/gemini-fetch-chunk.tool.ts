@@ -10,8 +10,8 @@ const inputSchema = z.object({
 });
 
 export const fetchChunkTool: UnifiedTool = {
-  name: 'fetch-chunk',
-  description: 'Retrieves cached chunks from a changeMode response. Use this to get subsequent chunks after receiving a partial changeMode response.',
+  name: 'gemini-fetch-chunk',
+  description: 'Retrieve one chunk of a chunked changeMode reply from gemini-ask, by the cacheKey and chunkIndex that reply reported. No model turn; the cache lives 10 minutes.',
   
   zodSchema: inputSchema,
   
@@ -20,7 +20,7 @@ export const fetchChunkTool: UnifiedTool = {
     arguments: [
       {
         name: 'prompt',
-        description: 'fetch-chunk cacheKey=<key> chunkIndex=<number>',
+        description: 'gemini-fetch-chunk cacheKey=<key> chunkIndex=<number>',
         required: true
       }
     ]
@@ -31,7 +31,7 @@ export const fetchChunkTool: UnifiedTool = {
   execute: async (args: any, onProgress?: (newOutput: string) => void): Promise<string> => {
     const { cacheKey, chunkIndex } = args;
     
-    Logger.toolInvocation('fetch-chunk', args);
+    Logger.toolInvocation('gemini-fetch-chunk', args);
     Logger.debug(`Fetching chunk ${chunkIndex} with cache key: ${cacheKey}`);
     
     // Security: validate cacheKey format before any filesystem access
@@ -48,7 +48,7 @@ export const fetchChunkTool: UnifiedTool = {
       return `❌ Cache miss: No chunks found for cache key "${cacheKey}". 
 
   Possible reasons:
-  1. The cache key is incorrect, Have you ran ask-gemini with changeMode enabled?
+  1. The cache key is incorrect, Have you ran gemini-ask with changeMode enabled?
   2. The cache has expired (10 minute TTL)
   3. The MCP server was restarted and the file-based cache was cleared
 

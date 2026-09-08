@@ -96,7 +96,7 @@ export function getChunks(cacheKey: string): EditChunk[] | null {
     // Note: intentionally NOT deleting the file here. The old behaviour
     // silently unlinked files on parse errors, which created a DELETE
     // path-traversal primitive when cacheKey was not validated upstream.
-    // With the format check in fetch-chunk.tool.ts this path is unreachable
+    // With the format check in gemini-fetch-chunk.tool.ts this path is unreachable
     // for valid callers, but leave the file alone regardless.
     return null;
   }

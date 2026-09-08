@@ -8,8 +8,9 @@ Short answers. When the full one lives on another page, the link is there.
 
 An MCP server. Your agent sends it a question, it runs the Antigravity CLI (`agy`) in print
 mode, and only the answer comes back — the files never enter your agent's context window. It
-exposes nine tools: `ask-gemini`, `gemini-plan`, `gemini-image`, `gemini-models`,
-`gemini-doctor`, `brainstorm`, `fetch-chunk`, `ping` and `Help`. They are all on the
+exposes eleven tools, all prefixed `gemini-`: `gemini-ask`, `gemini-plan`, `gemini-image`, `gemini-models`,
+`gemini-doctor`, `gemini-brainstorm`, `gemini-fetch-chunk`, `gemini-conversations`, `gemini-cancel`,
+`gemini-ping` and `gemini-help`. They are all on the
 [tool reference](/usage/commands).
 
 ### Why use this instead of running the CLI myself?
@@ -107,7 +108,7 @@ Yes. `agy` also serves `claude-sonnet-4-6`, `claude-opus-4-6-thinking` and
 `gpt-oss-120b-medium`. Pass one as `model` like any other id:
 
 ```json
-{ "name": "ask-gemini", "arguments": {
+{ "name": "gemini-ask", "arguments": {
     "prompt": "Second judge: @src/utils/commandExecutor.ts safe on Windows?",
     "model": "claude-opus-4-6-thinking", "mode": "plan" } }
 ```
@@ -124,14 +125,14 @@ Because every agy run belongs to a conversation, and you need its id to continue
 ```
 
 Pass that value back as `conversationId` and agy resumes the same session with its history —
-which costs more per turn than a fresh one, since the history is replayed. `ask-gemini` is the
-only tool that reports an id: `gemini-plan` and `brainstorm` never do, and neither takes the
+which costs more per turn than a fresh one, since the history is replayed. `gemini-ask` is the
+only tool that reports an id: `gemini-plan` and `gemini-brainstorm` never do, and neither takes the
 parameter. It is also omitted when `changeMode` is on or a `jsonSchema` is set, because those
 bodies are parsed.
 
 ### Why did my slash prompt not work?
 
-`ask-gemini` sends `--disable-slash-commands` by default, so a prompt starting with `/` goes to
+`gemini-ask` sends `--disable-slash-commands` by default, so a prompt starting with `/` goes to
 the model verbatim instead of expanding into an agy command. Set `allowSlashCommands: true` to
 reach the free, zero-token commands. [Troubleshooting](/resources/troubleshooting) lists them,
 and the one build caveat.
@@ -147,7 +148,7 @@ fourteen aspect ratios, an optional `size` (`512`, `1K`, `2K` or `4K`) and an op
 
 A rendered edit list, not the raw markers Gemini was asked to emit: a `[CHANGEMODE OUTPUT …]`
 header, one `### Edit N: <filename>` section per edit, then a footer. Large sets are chunked,
-and a chunked reply prints the exact `fetch-chunk` call to make next. Both shapes, both failure
+and a chunked reply prints the exact `gemini-fetch-chunk` call to make next. Both shapes, both failure
 paths and the chunk parameters are on the [tool reference](/usage/commands).
 
 ### Why is it slow?
@@ -168,7 +169,7 @@ No. Only what the active backend serves; run `gemini-models` for the live list.
 
 Whatever you reference reaches Google's models. Note also that agy runs a full agent on your
 machine: beyond the files the relay inlines, the agent can read files and run commands itself
-under the permissions in its own settings. Treat an `ask-gemini` call as running an agent, not
+under the permissions in its own settings. Treat an `gemini-ask` call as running an agent, not
 as sending a message.
 
 ### Is anything sandboxed?

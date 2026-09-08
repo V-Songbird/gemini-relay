@@ -1,11 +1,11 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-// This wires the full changeMode path that the ask-gemini tool drives for large
+// This wires the full changeMode path that the gemini-ask tool drives for large
 // edits: a Gemini-style response string -> parse -> validate -> chunk -> cache,
-// then the fetch-chunk tool retrieving subsequent chunks. No CLI is involved —
+// then the gemini-fetch-chunk tool retrieving subsequent chunks. No CLI is involved —
 // the "Gemini output" is a fixture string, so the test is hermetic.
 import { processChangeModeOutput } from "../../src/utils/geminiExecutor.js";
-import { fetchChunkTool } from "../../src/tools/fetch-chunk.tool.js";
+import { fetchChunkTool } from "../../src/tools/gemini-fetch-chunk.tool.js";
 import { clearCache } from "../../src/utils/chunkCache.js";
 
 const FENCE = "```";
@@ -37,16 +37,16 @@ describe("MCP Subsystem Integration: changeMode Pipeline", () => {
     assert.doesNotMatch(out, /Chunk 1 of/); // single chunk => no chunk header
   });
 
-  test("a large multi-edit response chunks, caches, and advertises fetch-chunk", async () => {
+  test("a large multi-edit response chunks, caches, and advertises gemini-fetch-chunk", async () => {
     const first = await processChangeModeOutput(bigMultiEditResponse(), undefined, undefined, "prompt-big");
     assert.match(first, /Chunk 1 of 2/);
 
     // The continuation must surface a real 8-char cache key.
     const m = first.match(/cacheKey="([a-f0-9]{8})"/);
-    assert.ok(m, "expected a fetch-chunk cacheKey in the first chunk");
+    assert.ok(m, "expected a gemini-fetch-chunk cacheKey in the first chunk");
     const cacheKey = m![1];
 
-    // The fetch-chunk tool retrieves the next chunk from that key.
+    // The gemini-fetch-chunk tool retrieves the next chunk from that key.
     const second = await fetchChunkTool.execute({ cacheKey, chunkIndex: 2 });
     assert.match(second, /Chunk 2 of 2/);
 
@@ -55,19 +55,19 @@ describe("MCP Subsystem Integration: changeMode Pipeline", () => {
     assert.match(again, /Chunk 1 of 2/);
   });
 
-  test("fetch-chunk reports an out-of-range index", async () => {
+  test("gemini-fetch-chunk reports an out-of-range index", async () => {
     const first = await processChangeModeOutput(bigMultiEditResponse(), undefined, undefined, "prompt-range");
     const cacheKey = first.match(/cacheKey="([a-f0-9]{8})"/)![1];
     const out = await fetchChunkTool.execute({ cacheKey, chunkIndex: 99 });
     assert.match(out, /Invalid chunk index/);
   });
 
-  test("fetch-chunk reports a cache miss for an unknown (but well-formed) key", async () => {
+  test("gemini-fetch-chunk reports a cache miss for an unknown (but well-formed) key", async () => {
     const out = await fetchChunkTool.execute({ cacheKey: "00000000", chunkIndex: 1 });
     assert.match(out, /Cache miss/);
   });
 
-  test("fetch-chunk rejects a malformed cache key before touching the cache", async () => {
+  test("gemini-fetch-chunk rejects a malformed cache key before touching the cache", async () => {
     const out = await fetchChunkTool.execute({ cacheKey: "../../etc/passwd", chunkIndex: 1 });
     assert.match(out, /Invalid cacheKey format/);
   });

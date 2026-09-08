@@ -1,10 +1,10 @@
 # Tool Reference
 
-Nine tools. You rarely name one — you say what you want and your agent picks.
+Eleven tools, every one prefixed `gemini-`. You rarely name one — you say what you want and your agent picks.
 
 This page says what each tool is for and how to ask for it. Every parameter, type, default and enum sits in one collapsed block at the end.
 
-## ask-gemini
+## gemini-ask
 
 The one you will use most. It sends Gemini a question and hands back the answer. Point at files with `@path` and their contents travel with the question, so your own agent never opens them.
 
@@ -18,7 +18,7 @@ A planner, not a builder. Give it a goal and you get a phased blueprint — the 
 
 > *"Use gemini-plan to design retry with backoff for the upload queue."*
 
-Its reply never carries a conversation id, so there is no thread to resume. To follow up, restate or re-attach the plan text in a fresh `ask-gemini` call — that opens a new conversation and reports an id of its own.
+Its reply never carries a conversation id, so there is no thread to resume. To follow up, restate or re-attach the plan text in a fresh `gemini-ask` call — that opens a new conversation and reports an id of its own.
 
 ## gemini-image
 
@@ -38,34 +38,42 @@ Your first move when something breaks. It reports which CLI is installed (`agy` 
 
 > *"Run gemini-doctor."*
 
-## brainstorm
+## gemini-brainstorm
 
 Ideas, run through a named method: SCAMPER, design thinking, lateral, divergent, convergent, or let it choose. Each idea comes back with feasibility and impact notes unless you turn that off.
 
 > *"Brainstorm ten ways to cut our cold-start time."*
 
-Like `gemini-plan`, it reports no conversation id. Only `ask-gemini` does.
+Like `gemini-plan`, it reports no conversation id. Only `gemini-ask` does.
 
-## fetch-chunk
+## gemini-fetch-chunk
 
-A large set of `changeMode` edits comes back in chunks. `fetch-chunk` pulls the next one out of the cache without a second model turn. The first reply spells out the exact call to make.
+A large set of `changeMode` edits comes back in chunks. `gemini-fetch-chunk` pulls the next one out of the cache without a second model turn. The first reply spells out the exact call to make.
 
-## ping
+## gemini-conversations
+
+Lists the conversations agy has on disk, newest first: id, when it was last active, which folder it ran in, and the first thing you asked. Pass an id to `gemini-ask` as `conversationId` to carry on where it left off. Nothing goes to a model.
+
+## gemini-cancel
+
+Kills every CLI run the relay has in flight. The call that was waiting gets an error back instead of an answer. Use it when a review or plan is taking longer than you are willing to wait.
+
+## gemini-ping
 
 Returns whatever you passed as `prompt`, or `Pong!` when you passed nothing. It answers in process — nothing is spawned and nothing is timed — so it proves the MCP transport is alive, not that the CLI is.
 
-## Help
+## gemini-help
 
 Prints the active backend CLI's own help text. No arguments.
 
 <details>
 <summary><strong>For AI agents — every parameter and default</strong></summary>
 
-Nine tools, every one of them above. A tenth, `timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set. Every row below is taken from the server's live `tools/list` output.
+Eleven tools, every one of them above. A twelfth, `gemini-timeout-test`, is registered only when `GEMINI_MCP_TEST_TOOLS` is set. Every row below is taken from the server's live `tools/list` output.
 
 | Tool | Parameter | Type · default | Notes |
 | --- | --- | --- | --- |
-| `ask-gemini` | `prompt` | string, required | Supports `@file`, `@dir`, `@.`, globs. See [Context inlining](../concepts/file-analysis.md). |
+| `gemini-ask` | `prompt` | string, required | Supports `@file`, `@dir`, `@.`, globs. See [Context inlining](../concepts/file-analysis.md). |
 | | `model` | string | Any id `gemini-models` lists, or the aliases `flash` / `pro`. Unset sends no `--model`, so agy answers on its own configured model. See [Models](../concepts/models.md). |
 | | `effort` | `low` \| `medium` \| `high` | Depth of thinking tokens. |
 | | `mode` | `plan` \| `accept-edits` | `plan` is read-only; `accept-edits` applies edits directly. |
@@ -90,7 +98,7 @@ Nine tools, every one of them above. A tenth, `timeout-test`, is registered only
 | | `aspectRatio` | enum · `1:1` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `5:4` `4:5` `21:9` `4:1` `1:4` `8:1` `1:8`. Passed inside the generation prompt, not as a flag — and there is no image-model parameter, because `--model` selects the planner model and rejects image model ids. |
 | | `size` | `512` \| `1K` \| `2K` \| `4K` | Omit to let Gemini pick. |
 | | `outputPath` | string | Path relative to the project root to copy the image to, e.g. `assets/hero.jpg`. A path escaping the project root is refused. |
-| `brainstorm` | `prompt` | string, required | The challenge or question to explore. |
+| `gemini-brainstorm` | `prompt` | string, required | The challenge or question to explore. |
 | | `model` | string | Unset sends no `--model`. |
 | | `methodology` | `divergent` \| `convergent` \| `scamper` \| `design-thinking` \| `lateral` \| `auto` · `auto` | |
 | | `effort` | `low` \| `medium` \| `high` | |
@@ -99,12 +107,14 @@ Nine tools, every one of them above. A tenth, `timeout-test`, is registered only
 | | `existingContext` | string | Background, previous attempts, current state. |
 | | `ideaCount` | integer · `12` | |
 | | `includeAnalysis` | boolean · `true` | Adds feasibility, impact and implementation analysis. Never reports a conversation id. |
-| `fetch-chunk` | `cacheKey` | string, required | Both are reported by the initial `changeMode` reply. |
+| `gemini-fetch-chunk` | `cacheKey` | string, required | Both are reported by the initial `changeMode` reply. |
 | | `chunkIndex` | number, required | 1-based. |
+| `gemini-conversations` | `limit` | integer · `20` | Recent conversations from agy's local store, newest first: id, last activity, cwd, first prompt. Max 100. No model turn. |
+| `gemini-cancel` | — | | Kills every CLI run in flight. Each cancelled call returns an error to its caller. |
 | `gemini-models` | — | | Live catalogue from `agy models`, plus backend capabilities. |
 | `gemini-doctor` | — | | Binaries, versions, backend, plus login and quota via a free `agy -p "/usage" --output-format json`. |
-| `ping` | `prompt` | string · `""` | The only parameter it declares; any other key, `message` included, is stripped before the handler sees it. |
-| `Help` | — | | The active backend CLI's own help. |
+| `gemini-ping` | `prompt` | string · `""` | The only parameter it declares; any other key, `message` included, is stripped before the handler sees it. |
+| `gemini-help` | — | | The active backend CLI's own help. |
 
 **One rule for every flag.** A flag is sent only when the installed agy advertised it in `agy --help`. There is no privileged flag and no exception — `--agent`, `--disable-slash-commands` and `--dangerously-skip-permissions` are treated exactly as `--model`, `--effort`, `--mode`, `--json-schema`, `--add-dir`, `--conversation` and `--sandbox` are. When that probe is missing, unparseable or times out, every capability reads false and **no flags at all** are sent: the run falls back to agy's own defaults rather than risk an unknown flag failing it outright.
 
@@ -124,7 +134,7 @@ function getMessage() {
 ```
 ````
 
-**changeMode, what you receive.** Not that. When the reply parses, the markers do not come back: the server returns a rendered form — a `[CHANGEMODE OUTPUT - …]` header, then one `### Edit N: <filename>` section per edit with a `Replace this exact text:` fenced block and a `With this text:` fenced block, then a footer telling you to apply the edits in order. When more than five edits were parsed, a summary block is prefixed to the first chunk, ahead of the header. Large edit sets are chunked and cached; when a chunk is not the last one the footer also carries the `fetch-chunk cacheKey="…" chunkIndex=…` call that retrieves the next.
+**changeMode, what you receive.** Not that. When the reply parses, the markers do not come back: the server returns a rendered form — a `[CHANGEMODE OUTPUT - …]` header, then one `### Edit N: <filename>` section per edit with a `Replace this exact text:` fenced block and a `With this text:` fenced block, then a footer telling you to apply the edits in order. When more than five edits were parsed, a summary block is prefixed to the first chunk, ahead of the header. Large edit sets are chunked and cached; when a chunk is not the last one the footer also carries the `gemini-fetch-chunk cacheKey="…" chunkIndex=…` call that retrieves the next.
 
 ```
 [CHANGEMODE OUTPUT - Gemini has analyzed the files and provided these edits]

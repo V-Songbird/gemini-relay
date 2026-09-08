@@ -6,11 +6,11 @@ On the default `agy` backend the relay resolves those references itself, before 
 
 ## Basic usage
 
-Any `ask-gemini` prompt can carry references. The `@` must start the prompt or follow whitespace, so `user@host` and `name@example.com` are never mistaken for files.
+Any `gemini-ask` prompt can carry references. The `@` must start the prompt or follow whitespace, so `user@host` and `name@example.com` are never mistaken for files.
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": { "prompt": "@src/index.ts explain what this does" }
 }
 ```
@@ -27,7 +27,7 @@ Reference as many as you like in one prompt:
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": { "prompt": "@src/backends/agy.ts @src/backends/gemini.ts how do these two differ?" }
 }
 ```

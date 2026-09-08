@@ -40,7 +40,7 @@ Hand Gemini a schema and the answer comes back as JSON, not prose. Useful when t
 <summary><strong>For AI agents — the call</strong></summary>
 
 ```json
-{ "name": "ask-gemini", "arguments": {
+{ "name": "gemini-ask", "arguments": {
   "prompt": "Audit @src for vulnerabilities.",
   "mode": "plan", "effort": "high",
   "jsonSchema": { "type": "object", "required": ["findings"], "properties": {
@@ -67,7 +67,7 @@ The reply arrives under a `[CHANGEMODE OUTPUT - …]` header as numbered `### Ed
 <summary><strong>For AI agents — the call</strong></summary>
 
 ```json
-{ "name": "ask-gemini", "arguments": {
+{ "name": "gemini-ask", "arguments": {
   "prompt": "@src/services/*.js refactor these to use the Repository pattern.",
   "changeMode": true } }
 ```
@@ -91,7 +91,7 @@ Prose is the wrong shape for a multi-week change. `gemini-plan` returns phases i
 
 </details>
 
-Take the phases back and execute them with your own editing tools. `gemini-plan` is read-only and reports no conversation id, so a follow-up means restating the plan text in a fresh `ask-gemini` call.
+Take the phases back and execute them with your own editing tools. `gemini-plan` is read-only and reports no conversation id, so a follow-up means restating the plan text in a fresh `gemini-ask` call.
 
 ## Read something too big to open
 

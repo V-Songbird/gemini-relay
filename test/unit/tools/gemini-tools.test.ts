@@ -15,7 +15,7 @@ describe("Tools: gemini-plan", () => {
     const plan = defs.find((d) => d.name === "gemini-plan");
     assert.ok(plan);
     assert.equal(plan.name, "gemini-plan");
-    assert.ok(plan.description?.includes("Architectural"));
+    assert.ok(plan.description?.includes("blueprint"));
     const props = plan.inputSchema.properties as Record<string, unknown>;
     assert.ok(props.task);
     assert.ok(props.effort);
@@ -213,18 +213,18 @@ describe("Tools: ping", () => {
   test("ping echoes the message verbatim, without cmd.exe quoting", async () => {
     // Regression for audit bug 10: the old spawn of the cmd.exe `echo` builtin
     // returned the message wrapped in commandExecutor's safety quotes.
-    assert.equal(await executeTool("ping", { prompt: 'hello & world' }), "hello & world");
+    assert.equal(await executeTool("gemini-ping", { prompt: 'hello & world' }), "hello & world");
   });
 
   test("ping falls back to Pong! for an empty prompt", async () => {
-    assert.equal(await executeTool("ping", {}), "Pong!");
+    assert.equal(await executeTool("gemini-ping", {}), "Pong!");
   });
 });
 
-describe("Tools: ask-gemini enhancements", () => {
-  test("ask-gemini schema exposes effort, mode, jsonSchema, addDirs, and includeUsage", () => {
+describe("Tools: gemini-ask enhancements", () => {
+  test("gemini-ask schema exposes effort, mode, jsonSchema, addDirs, and includeUsage", () => {
     const defs = getToolDefinitions();
-    const ask = defs.find((d) => d.name === "ask-gemini");
+    const ask = defs.find((d) => d.name === "gemini-ask");
     assert.ok(ask);
     const props = ask.inputSchema.properties as Record<string, unknown>;
     assert.ok(props.effort);
@@ -232,5 +232,18 @@ describe("Tools: ask-gemini enhancements", () => {
     assert.ok(props.jsonSchema);
     assert.ok(props.addDirs);
     assert.ok(props.includeUsage);
+  });
+});
+
+describe("Tools: gemini-cancel and gemini-conversations", () => {
+  test("gemini-cancel reports nothing to do when idle", async () => {
+    assert.equal(toolExists("gemini-cancel"), true);
+    assert.equal(await executeTool("gemini-cancel", {}), "Nothing was running.");
+  });
+
+  test("gemini-conversations is registered and answers without a CLI", async () => {
+    assert.equal(toolExists("gemini-conversations"), true);
+    const out = await executeTool("gemini-conversations", { limit: 3 });
+    assert.ok(out.includes("No conversations found") || out.includes("| id |"));
   });
 });

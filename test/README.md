@@ -32,7 +32,7 @@ Still **hermetic** — it never invokes the real gemini CLI. The "Gemini output"
 fixture string fed into the real downstream pipeline. Covers the cross-module flows a
 user actually hits:
 - the full **changeMode pipeline**: response string → parse → validate → chunk → cache →
-  `fetch-chunk` retrieval of later chunks;
+  `gemini-fetch-chunk` retrieval of later chunks;
 - the **registry → tool contract**: argument validation surfaced as friendly errors, and
   every tool guard/error branch that resolves *without* calling Gemini.
 
@@ -48,10 +48,10 @@ for manual mcpjam testing.
 - Live-model tests **auto-skip** when the CLI of the *active backend* is not on `PATH`, so
   the suite degrades gracefully. Since the retirement date that backend is `agy` unless
   `GEMINI_MCP_BACKEND=gemini` is set, and the harness gates on whichever one the server will
-  actually select. The tools that need no model (`ping`, `fetch-chunk`, `tools/list`,
-  `prompts/list`) always run. `timeout-test` is not one of them: `src/tools/index.ts`
+  actually select. The tools that need no model (`gemini-ping`, `gemini-fetch-chunk`, `tools/list`,
+  `prompts/list`) always run. `gemini-timeout-test` is not one of them: `src/tools/index.ts`
   registers it only when `GEMINI_MCP_TEST_TOOLS` is set, which only the `judge/` suite
-  does, so calling it from an e2e test answers `Unknown tool: timeout-test`.
+  does, so calling it from an e2e test answers `Unknown tool: gemini-timeout-test`.
 - `npm run test:e2e` builds first, so it tests exactly what ships.
 - Live model calls are slow and use your quota; the model is pinned to
   `config.judgeGeminiModel` (see `JUDGE_GEMINI_MODEL` below) and each test has a

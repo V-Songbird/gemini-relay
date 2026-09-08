@@ -49,7 +49,7 @@ export function getBackend(
 // A retirement notice is shown once per process, not on every call: the
 // post-retirement one used to be unguarded, so it prefixed every single reply
 // from every tool for as long as the server ran. "Once" is counted at *delivery*
-// (withNotices), not here, because ping/Help (simple-tools) and gemini-doctor
+// (withNotices), not here, because gemini-ping/gemini-help (simple-tools) and gemini-doctor
 // call backendSelection for the backend name alone and drop the notices — marking
 // it produced would burn the single shot before any caller ever saw it.
 let retirementNoticeShown = false;

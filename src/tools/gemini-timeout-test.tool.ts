@@ -6,8 +6,8 @@ const timeoutTestArgsSchema = z.object({
 });
 
 export const timeoutTestTool: UnifiedTool = {
-  name: "timeout-test",
-  description: "Test timeout prevention by running for a specified duration",
+  name: "gemini-timeout-test",
+  description: "Test-only: hold a call open for a set number of seconds to exercise progress and timeout handling. Registered only when GEMINI_MCP_TEST_TOOLS is set.",
   zodSchema: timeoutTestArgsSchema,
   prompt: {
     description: "Test the timeout prevention system by running a long operation",

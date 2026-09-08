@@ -1,12 +1,12 @@
 # Sandbox Mode
 
-`sandbox` is a boolean parameter on `ask-gemini`, off by default. It asks the CLI to run sandboxed; it is not an isolation layer the relay provides.
+`sandbox` is a boolean parameter on `gemini-ask`, off by default. It asks the CLI to run sandboxed; it is not an isolation layer the relay provides.
 
 On the default `agy` backend it isolates nothing, and the reply says so. This page is about what does protect you instead.
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "write and run a quicksort, then show the output",
     "sandbox": true
@@ -49,7 +49,7 @@ If you need code executed under real isolation, run it yourself in a container a
 
 ```json
 {
-  "name": "ask-gemini",
+  "name": "gemini-ask",
   "arguments": {
     "prompt": "@src/data-processor.ts this is slow — how would you optimize it?",
     "mode": "plan"

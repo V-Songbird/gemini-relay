@@ -4,7 +4,7 @@ You ask in plain language. Your agent picks a tool, the relay runs the Antigravi
 
 This page follows one call the whole way: which backend runs, what the relay does to your prompt before it leaves, what happens when a step fails, and the three deadlines that can cut a run short.
 
-<div align="center">⇣ when ask-gemini gets called ↴</div>
+<div align="center">⇣ when gemini-ask gets called ↴</div>
 <DiagramModal>
 
 ```mermaid
@@ -18,7 +18,7 @@ flowchart LR
     subgraph main
         direction TB
         A[You] --> |"ask gemini..."| B([**Claude**])
-        B -..-> |"invokes 'ask-gemini'"| C["Gemini-Relay"]
+        B -..-> |"invokes 'gemini-ask'"| C["Gemini-Relay"]
         C --> |"spawn agy in print mode"| D[Antigravity CLI]
         D e1@-.-> |"JSON result"| C
         C -.-> |"response"| B
@@ -51,7 +51,7 @@ Leave it unset and the choice is made against the calendar: the Gemini CLI until
 
 ## The execution path
 
-Everything below happens inside one `ask-gemini`, `gemini-plan` or `brainstorm` call on the agy backend.
+Everything below happens inside one `gemini-ask`, `gemini-plan` or `gemini-brainstorm` call on the agy backend.
 
 Runs are serialized behind a single promise queue. Each run rewrites agy's `last_conversations.json`, so concurrent runs would read each other's conversation ids back.
 
@@ -60,7 +60,7 @@ Runs are serialized behind a single promise queue. Each run rewrites agy's `last
 3. **Capabilities are probed.** Once per process the relay runs `agy --help` and reads which flags this build advertises. A `--help` that is missing, unparseable or too slow is not fatal: every capability simply stays false.
 4. **The argument list is assembled.** One rule covers every flag: it is sent only when the probe found it advertised in `agy --help`. If the probe found nothing, no flags at all are sent and the run falls back to agy's own defaults — an unknown flag would make agy exit non-zero and fail the whole request.
 5. **agy is spawned in print mode.** On a build that advertises stream-json input the prompt travels on stdin, which is why a large inlined `@file` prompt is no longer bounded by the OS argv cap. An older build keeps `-p <prompt>`.
-6. **The reply is read out of the JSON result.** The relay takes the answer text, the conversation id, and — as `⚠️` notices — any status other than success and any tool call the headless run had denied. Only `ask-gemini` reports the id back to you, and only on a plain-text reply, as a trailing `🧵 conversationId: …` line.
+6. **The reply is read out of the JSON result.** The relay takes the answer text, the conversation id, and — as `⚠️` notices — any status other than success and any tool call the headless run had denied. Only `gemini-ask` reports the id back to you, and only on a plain-text reply, as a trailing `🧵 conversationId: …` line.
 7. **agy's own error text is surfaced verbatim.** A bad model id, an exhausted quota or a dropped login comes back in agy's words, rather than flattened into "Command failed with exit code 1".
 
 <details>
@@ -80,7 +80,7 @@ One prompt is exempt whatever the build advertises: a slash command let through 
 
 A build without stream-json input keeps `-p <prompt>`, with `--output-format json` when *that* is advertised and plain text when it is not. `--print-timeout` is added when the build advertises it, derived to sit under the wrapper's own deadline so agy can report its own timeout with a usable message — see [Timeouts](#timeouts).
 
-**The result object.** Under stream-json the reply is the last `{"event":"result","result":{…}}` line; under plain `--output-format json` it is the whole of stdout. From that object the relay takes the reply text, the `conversation_id`, and — as `⚠️` notices — any `status` other than `SUCCESS` and any `denied_actions` the headless run collected. The id reaches you only from `ask-gemini`, and only on a plain-text reply: it is suppressed when `jsonSchema` is set and never reached under `changeMode`, because both bodies are parsed, and `gemini-plan` and `brainstorm` never report one at all.
+**The result object.** Under stream-json the reply is the last `{"event":"result","result":{…}}` line; under plain `--output-format json` it is the whole of stdout. From that object the relay takes the reply text, the `conversation_id`, and — as `⚠️` notices — any `status` other than `SUCCESS` and any `denied_actions` the headless run collected. The id reaches you only from `gemini-ask`, and only on a plain-text reply: it is suppressed when `jsonSchema` is set and never reached under `changeMode`, because both bodies are parsed, and `gemini-plan` and `gemini-brainstorm` never report one at all.
 
 **Errors.** A bad model id, an exhausted quota or a dropped login arrives as `error` in that result — on a failed exit and on an exit-0 run with `status: ERROR` alike — and is thrown as-is.
 

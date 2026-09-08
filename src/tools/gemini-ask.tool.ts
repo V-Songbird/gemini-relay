@@ -29,11 +29,11 @@ const askGeminiArgsSchema = z.object({
 });
 
 export const askGeminiTool: UnifiedTool = {
-  name: "ask-gemini",
-  description: "Query Google Gemini (Gemini 3.8 / 3.7 / 3.6 Flash, 3.1 Pro) — or the Claude and GPT-OSS models the Antigravity CLI also offers — for analysis, reasoning, architectural planning and code changes. Reference project files with @path to send their contents along.",
+  name: "gemini-ask",
+  description: "Send one prompt to Google Gemini (or the Claude and GPT-OSS models the Antigravity CLI also offers) and get the answer back: questions, code review, analysis, edits, structured JSON. Reference project files with @path to send their contents along. Pass conversationId to continue a thread. For a phased implementation blueprint use gemini-plan; for idea generation use gemini-brainstorm; for everything else use this.",
   zodSchema: askGeminiArgsSchema,
   prompt: {
-    description: "Query Gemini AI with prompt, optional model selection, reasoning effort, planning mode, and structured output.",
+    description: "Ask Gemini a question or hand it a review, with optional model, reasoning effort, read-only mode, and structured output.",
   },
   category: 'gemini',
   execute: async (args, onProgress) => {

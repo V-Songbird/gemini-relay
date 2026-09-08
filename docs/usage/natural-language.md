@@ -2,7 +2,7 @@
 
 Ask in a sentence. Your agent picks the tool and fills in the arguments.
 
-You never have to write an MCP call by hand. Say "ask gemini" and what you want, and the request routes to one of the nine tools — nearly always `ask-gemini`.
+You never have to write an MCP call by hand. Say "ask gemini" and what you want, and the request routes to one of the eleven tools — nearly always `gemini-ask`.
 
 ## What to say
 
@@ -45,7 +45,7 @@ Reach for an explicit tool call only to pin something a plain request would not 
 <summary><strong>For AI agents — the call that pins those</strong></summary>
 
 ```json
-{ "name": "ask-gemini", "arguments": {
+{ "name": "gemini-ask", "arguments": {
   "prompt": "@app.js @error.log what is crashing here?",
   "model": "gemini-3.1-pro-high", "effort": "high", "mode": "plan" } }
 ```

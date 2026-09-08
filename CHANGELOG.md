@@ -2,6 +2,16 @@
 
 All notable changes to **Gemini Relay** will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **BREAKING: every tool is now named `gemini-*`.** `ask-gemini` → `gemini-ask`, `brainstorm` → `gemini-brainstorm`, `fetch-chunk` → `gemini-fetch-chunk`, `ping` → `gemini-ping`, `Help` → `gemini-help`, and the test-only `timeout-test` → `gemini-timeout-test`. No aliases: a call on an old name is refused with `Unknown tool`. Update any prompt, skill or config that names a tool.
+- **Tool descriptions rewritten so the three model-facing tools no longer overlap**: `gemini-ask` is the general tool (questions, review, edits, structured JSON, thread follow-ups), `gemini-plan` is only a read-only phased blueprint, `gemini-brainstorm` is only ideation. Each description says which of the other two to use instead.
+
+### Added
+- **`gemini-conversations`**: lists the conversations agy has on disk, newest first — id, last activity, cwd, first prompt — so an agent can pick a thread to resume with `conversationId` instead of guessing. Read from agy's local store; no model turn.
+- **`gemini-cancel`**: kills every CLI run the relay has in flight. The interrupted call rejects with `… was cancelled by gemini-cancel`; the relay stays up. Until now the only way out of a slow run was the `GEMINI_MCP_TIMEOUT` deadline.
+
 ## [1.3.0] - 2026-09-05
 
 ### Fixed

@@ -6,7 +6,7 @@ import { type ReasoningEffort } from '../constants.js';
 const geminiPlanArgsSchema = z.object({
   task: z.string().min(1).describe("The architectural task, complex feature, or refactoring goal to plan out."),
   context: z.string().optional().describe("Additional context, constraints, or reference files (supports @file syntax)."),
-  model: z.string().optional().describe("Model to plan with. Unlike ask-gemini, this tool pins 'gemini-3.8-flash-high' when you name none. 'gemini-3.1-pro-high' is the usual step up."),
+  model: z.string().optional().describe("Model to plan with. Unlike gemini-ask, this tool pins 'gemini-3.8-flash-high' when you name none. 'gemini-3.1-pro-high' is the usual step up."),
   effort: z.enum(['low', 'medium', 'high']).default('high').describe("Reasoning effort level (default: 'high'). Allocates deep thinking tokens for comprehensive plan design."),
   addDirs: z.array(z.string()).optional().describe("Additional directories to add to workspace context."),
   includeUsage: z.boolean().default(true).describe("Include token metrics in the response."),
@@ -14,7 +14,7 @@ const geminiPlanArgsSchema = z.object({
 
 export const geminiPlanTool: UnifiedTool = {
   name: "gemini-plan",
-  description: "Architectural and implementation planner powered by Gemini's deep reasoning. Generates structured, phased implementation blueprints, dependency analysis, and risk assessments without modifying code.",
+  description: "Produce a read-only, phased implementation blueprint for one task — steps, dependencies, risks — on Gemini's highest reasoning effort. Never edits files and never answers general questions; use gemini-ask for those.",
   zodSchema: geminiPlanArgsSchema,
   prompt: {
     description: "Create a detailed implementation blueprint for a task using Gemini's high-effort reasoning and plan mode.",

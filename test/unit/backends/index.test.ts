@@ -58,7 +58,7 @@ describe("Backends: selection", () => {
   });
 
   test("the one-shot notice is spent on delivery, not on being produced", () => {
-    // ping/Help (simple-tools) and gemini-doctor call backendSelection for the
+    // gemini-ping/gemini-help (simple-tools) and gemini-doctor call backendSelection for the
     // backend name and drop the notices; that must not burn the single shot.
     __resetRetirementNudgeForTest();
     backendSelection({}, AFTER); // notices thrown away
